@@ -130,7 +130,7 @@ private fun MainScreen(
     isChatting: Boolean,
     cloudState: CloudState,
     agents: List<com.apexaurum.pocket.cloud.AgentInfo>,
-    memories: List<com.apexaurum.pocket.cloud.MemoryItem>,
+    memories: List<com.apexaurum.pocket.cloud.AgentMemoryItem>,
     memoriesLoading: Boolean,
     isListening: Boolean,
     isSpeaking: Boolean,
@@ -217,6 +217,8 @@ private fun MainScreen(
                     memories = memories,
                     isLoading = memoriesLoading,
                     onRefresh = { vm.fetchMemories() },
+                    onSave = { k, v, t -> vm.saveMemory(k, v, t) },
+                    onDelete = { vm.deleteMemory(it) },
                 )
                 3 -> StatusScreen(
                     soul = soul,

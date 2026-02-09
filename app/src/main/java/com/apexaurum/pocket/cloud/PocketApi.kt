@@ -25,6 +25,18 @@ interface PocketApi {
     @GET("api/v1/pocket/memories")
     suspend fun getMemories(): MemoriesResponse
 
+    @GET("api/v1/pocket/memories")
+    suspend fun getAgentMemories(
+        @Query("agent") agent: String,
+        @Query("limit") limit: Int = 20,
+    ): AgentMemoriesResponse
+
+    @POST("api/v1/pocket/memories")
+    suspend fun saveMemory(@Body request: SaveMemoryRequest): SaveMemoryResponse
+
+    @DELETE("api/v1/pocket/memories/{id}")
+    suspend fun deleteMemory(@Path("id") id: String): DeleteMemoryResponse
+
     @GET("api/v1/pocket/history")
     suspend fun getHistory(
         @Query("agent") agent: String,
@@ -138,4 +150,50 @@ data class HistoryMessage(
     val text: String,
     val isUser: Boolean,
     val timestamp: Long = 0,
+)
+
+// ─── Memory CRUD Models ──────────────────────────────────────────
+
+@Serializable
+data class AgentMemoryItem(
+    val id: String,
+    @SerialName("agent_id") val agentId: String,
+    @SerialName("memory_type") val memoryType: String = "fact",
+    val key: String,
+    val value: String,
+    val confidence: Float = 0.8f,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+    @SerialName("last_accessed") val lastAccessed: String? = null,
+    @SerialName("access_count") val accessCount: Int = 0,
+)
+
+@Serializable
+data class AgentMemoriesResponse(
+    val memories: List<AgentMemoryItem> = emptyList(),
+    val count: Int = 0,
+    val agent: String = "",
+)
+
+@Serializable
+data class SaveMemoryRequest(
+    val agent: String = "AZOTH",
+    @SerialName("memory_type") val memoryType: String = "fact",
+    val key: String,
+    val value: String,
+    val confidence: Float = 0.8f,
+)
+
+@Serializable
+data class SaveMemoryResponse(
+    val id: String = "",
+    val message: String = "",
+    val key: String = "",
+    val agent: String = "",
+)
+
+@Serializable
+data class DeleteMemoryResponse(
+    val message: String = "",
+    val id: String = "",
 )

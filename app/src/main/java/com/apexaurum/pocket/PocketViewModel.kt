@@ -53,8 +53,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val motd: StateFlow<String> = _motd.asStateFlow()
 
     // Memories
-    private val _memories = MutableStateFlow<List<com.apexaurum.pocket.cloud.MemoryItem>>(emptyList())
-    val memories: StateFlow<List<com.apexaurum.pocket.cloud.MemoryItem>> = _memories.asStateFlow()
+    private val _memories = MutableStateFlow<List<com.apexaurum.pocket.cloud.AgentMemoryItem>>(emptyList())
+    val memories: StateFlow<List<com.apexaurum.pocket.cloud.AgentMemoryItem>> = _memories.asStateFlow()
     private val _memoriesLoading = MutableStateFlow(false)
     val memoriesLoading: StateFlow<Boolean> = _memoriesLoading.asStateFlow()
 
@@ -145,12 +145,13 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Fetch memories from cloud. */
+    /** Fetch memories from cloud (filtered by current agent). */
     fun fetchMemories() {
         viewModelScope.launch {
             _memoriesLoading.value = true
             try {
-                val resp = api?.getMemories()
+                val agent = soul.value.selectedAgentId
+                val resp = api?.getAgentMemories(agent)
                 if (resp != null) {
                     _memories.value = resp.memories
                 }
@@ -158,6 +159,40 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 // Silent — memories are best-effort
             } finally {
                 _memoriesLoading.value = false
+            }
+        }
+    }
+
+    /** Save a memory to the cloud. */
+    fun saveMemory(key: String, value: String, type: String = "fact") {
+        viewModelScope.launch {
+            try {
+                val agent = soul.value.selectedAgentId
+                api?.saveMemory(
+                    SaveMemoryRequest(
+                        agent = agent,
+                        memoryType = type,
+                        key = key,
+                        value = value,
+                    )
+                )
+                fetchMemories()
+            } catch (_: Exception) {
+                // Silent
+            }
+        }
+    }
+
+    /** Delete a memory from the cloud. */
+    fun deleteMemory(memoryId: String) {
+        viewModelScope.launch {
+            // Optimistic removal
+            _memories.value = _memories.value.filter { it.id != memoryId }
+            try {
+                api?.deleteMemory(memoryId)
+            } catch (_: Exception) {
+                // Refresh to restore if failed
+                fetchMemories()
             }
         }
     }
@@ -264,6 +299,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         saveSoul(updated)
         _messages.value = emptyList()
         loadHistory(agentId)
+        fetchMemories()
     }
 
     /** Sync soul state to cloud. */
