@@ -52,6 +52,16 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private val _motd = MutableStateFlow("")
     val motd: StateFlow<String> = _motd.asStateFlow()
 
+    // Memories
+    private val _memories = MutableStateFlow<List<com.apexaurum.pocket.cloud.MemoryItem>>(emptyList())
+    val memories: StateFlow<List<com.apexaurum.pocket.cloud.MemoryItem>> = _memories.asStateFlow()
+    private val _memoriesLoading = MutableStateFlow(false)
+    val memoriesLoading: StateFlow<Boolean> = _memoriesLoading.asStateFlow()
+
+    // Conversation IDs per agent (from DataStore)
+    private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+
     // Loading states
     private val _isChatting = MutableStateFlow(false)
     val isChatting: StateFlow<Boolean> = _isChatting.asStateFlow()
@@ -110,7 +120,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Connect to cloud — fetch status + agents. */
+    /** Connect to cloud — fetch status + agents + history. */
     private fun connectToCloud() {
         viewModelScope.launch {
             _cloudState.value = CloudState.CONNECTING
@@ -125,8 +135,53 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 if (agentsResp != null) {
                     _agents.value = agentsResp.agents
                 }
+                // Fetch memories
+                fetchMemories()
+                // Load chat history for current agent
+                loadHistory()
             } catch (e: Exception) {
                 _cloudState.value = CloudState.ERROR
+            }
+        }
+    }
+
+    /** Fetch memories from cloud. */
+    fun fetchMemories() {
+        viewModelScope.launch {
+            _memoriesLoading.value = true
+            try {
+                val resp = api?.getMemories()
+                if (resp != null) {
+                    _memories.value = resp.memories
+                }
+            } catch (_: Exception) {
+                // Silent — memories are best-effort
+            } finally {
+                _memoriesLoading.value = false
+            }
+        }
+    }
+
+    /** Load chat history from cloud for the current agent. */
+    fun loadHistory() {
+        viewModelScope.launch {
+            try {
+                val agent = soul.value.selectedAgentId
+                val resp = api?.getHistory(agent) ?: return@launch
+                // Persist conversation ID
+                resp.conversationId?.let { id ->
+                    repo.saveConversationId(agent, id)
+                }
+                // Replace messages with history
+                _messages.value = resp.messages.map { m ->
+                    ChatMessage(
+                        text = m.text,
+                        isUser = m.isUser,
+                        timestamp = m.timestamp,
+                    )
+                }
+            } catch (_: Exception) {
+                // Silent — history loading is best-effort
             }
         }
     }
@@ -138,6 +193,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         val evolved = LoveEquation.evolvePersonality(updated)
         saveSoul(evolved)
         reportCare("love", 1.5f, evolved.e)
+        viewModelScope.launch { repo.updateLastInteraction() }
     }
 
     /** Send a poke tap (care). */
@@ -146,6 +202,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         val updated = LoveEquation.applyCare(current, 0.5f)
         saveSoul(updated)
         reportCare("poke", 0.5f, updated.e)
+        viewModelScope.launch { repo.updateLastInteraction() }
     }
 
     /** Send a chat message. */
@@ -155,15 +212,18 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         val currentSoul = soul.value
         _messages.value = _messages.value + ChatMessage(text = text, isUser = true)
         _isChatting.value = true
+        viewModelScope.launch { repo.updateLastInteraction() }
 
         viewModelScope.launch {
             try {
+                val convId = _conversationIds.value[currentSoul.selectedAgentId]
                 val response = api?.chat(
                     ChatRequest(
                         message = text,
                         agent = currentSoul.selectedAgentId,
                         energy = currentSoul.e,
                         state = currentSoul.state.name,
+                        conversationId = convId,
                     )
                 )
                 if (response != null) {
@@ -172,6 +232,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                         isUser = false,
                         expression = response.expression,
                     )
+                    // Persist conversation ID from server
+                    response.conversationId?.let { id ->
+                        repo.saveConversationId(currentSoul.selectedAgentId, id)
+                    }
                     // Apply care from response
                     if (response.careValue > 0) {
                         val updated = LoveEquation.applyCare(currentSoul, response.careValue)
@@ -198,6 +262,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     fun selectAgent(agentId: String) {
         val updated = soul.value.copy(selectedAgentId = agentId)
         saveSoul(updated)
+        _messages.value = emptyList()
+        loadHistory()
     }
 
     /** Sync soul state to cloud. */
@@ -265,7 +331,14 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     private fun saveSoul(soul: SoulData) {
-        viewModelScope.launch { repo.saveSoul(soul) }
+        viewModelScope.launch {
+            repo.saveSoul(soul)
+            try {
+                com.apexaurum.pocket.widget.SoulWidget.refreshAll(getApplication())
+            } catch (_: Exception) {
+                // Widget may not be placed — ignore
+            }
+        }
     }
 
     override fun onCleared() {

@@ -8,8 +8,13 @@ import com.apexaurum.pocket.soul.Personality
 import com.apexaurum.pocket.soul.SoulData
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
-private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "apex_soul")
+internal val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "apex_soul")
 
 /**
  * Local persistence for soul state + device token.
@@ -31,6 +36,9 @@ class SoulRepository(private val context: Context) {
         val DEVICE_NAME = stringPreferencesKey("device_name")
         val LAST_SYNC_MS = longPreferencesKey("last_sync_ms")
         val AUTO_READ_ENABLED = booleanPreferencesKey("auto_read_enabled")
+        val LAST_INTERACTION_MS = longPreferencesKey("last_interaction_ms")
+        val LAST_NUDGE_TIER = intPreferencesKey("last_nudge_tier")
+        val CONVERSATION_IDS = stringPreferencesKey("conversation_ids")
     }
 
     /** Observe soul state as a Flow (reactive). */
@@ -106,6 +114,55 @@ class SoulRepository(private val context: Context) {
     suspend fun saveAutoRead(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[Keys.AUTO_READ_ENABLED] = enabled
+        }
+    }
+
+    /** Update last interaction timestamp and clear nudge tier. */
+    suspend fun updateLastInteraction() {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.LAST_INTERACTION_MS] = System.currentTimeMillis()
+            prefs[Keys.LAST_NUDGE_TIER] = 0
+        }
+    }
+
+    /** Last interaction timestamp flow. */
+    val lastInteractionFlow: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[Keys.LAST_INTERACTION_MS] ?: System.currentTimeMillis()
+    }
+
+    /** Last nudge tier flow. */
+    val lastNudgeTierFlow: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[Keys.LAST_NUDGE_TIER] ?: 0
+    }
+
+    /** Update nudge tier after sending a notification. */
+    suspend fun updateNudgeTier(tier: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.LAST_NUDGE_TIER] = tier
+        }
+    }
+
+    /** Observe conversation IDs as a map of agent -> conversationId. */
+    val conversationIdsFlow: Flow<Map<String, String>> = context.dataStore.data.map { prefs ->
+        val raw = prefs[Keys.CONVERSATION_IDS] ?: "{}"
+        try {
+            Json.parseToJsonElement(raw).jsonObject.mapValues { it.value.jsonPrimitive.content }
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    /** Save a conversation ID for a specific agent. */
+    suspend fun saveConversationId(agent: String, conversationId: String) {
+        context.dataStore.edit { prefs ->
+            val raw = prefs[Keys.CONVERSATION_IDS] ?: "{}"
+            val existing = try {
+                Json.parseToJsonElement(raw).jsonObject.toMutableMap()
+            } catch (_: Exception) {
+                mutableMapOf()
+            }
+            existing[agent] = JsonPrimitive(conversationId)
+            prefs[Keys.CONVERSATION_IDS] = JsonObject(existing).toString()
         }
     }
 }

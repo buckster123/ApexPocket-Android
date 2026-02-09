@@ -24,6 +24,12 @@ interface PocketApi {
 
     @GET("api/v1/pocket/memories")
     suspend fun getMemories(): MemoriesResponse
+
+    @GET("api/v1/pocket/history")
+    suspend fun getHistory(
+        @Query("agent") agent: String,
+        @Query("limit") limit: Int = 50,
+    ): HistoryResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -35,6 +41,7 @@ data class ChatRequest(
     @SerialName("E") val energy: Float = 1.0f,
     val state: String = "WARM",
     @SerialName("device_id") val deviceId: String? = null,
+    @SerialName("conversation_id") val conversationId: String? = null,
 )
 
 @Serializable
@@ -74,6 +81,7 @@ data class ChatResponse(
     @SerialName("care_value") val careValue: Float = 0.0f,
     val agent: String = "AZOTH",
     @SerialName("tools_used") val toolsUsed: List<String> = emptyList(),
+    @SerialName("conversation_id") val conversationId: String? = null,
 )
 
 @Serializable
@@ -117,4 +125,17 @@ data class AgentInfo(
 data class MemoriesResponse(
     val memories: List<MemoryItem> = emptyList(),
     val count: Int = 0,
+)
+
+@Serializable
+data class HistoryResponse(
+    @SerialName("conversation_id") val conversationId: String? = null,
+    val messages: List<HistoryMessage> = emptyList(),
+)
+
+@Serializable
+data class HistoryMessage(
+    val text: String,
+    val isUser: Boolean,
+    val timestamp: Long = 0,
 )
