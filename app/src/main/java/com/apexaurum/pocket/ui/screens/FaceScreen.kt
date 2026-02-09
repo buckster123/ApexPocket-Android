@@ -1,11 +1,14 @@
 package com.apexaurum.pocket.ui.screens
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.TouchApp
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -102,15 +105,33 @@ fun FaceScreen(
             drawFace(soul.expression, blinkAlpha, breathe, stateColor)
         }
 
-        // Tap hints
+        // Love / Poke buttons
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 48.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+                .padding(horizontal = 32.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text("tap: love", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-            Text("tap: poke", color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            OutlinedButton(
+                onClick = onLove,
+                modifier = Modifier.weight(1f),
+                border = BorderStroke(1.dp, stateColor.copy(alpha = 0.5f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = stateColor),
+            ) {
+                Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Love", fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+            }
+            OutlinedButton(
+                onClick = onPoke,
+                modifier = Modifier.weight(1f),
+                border = BorderStroke(1.dp, Gold.copy(alpha = 0.5f)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Gold),
+            ) {
+                Icon(Icons.Default.TouchApp, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Poke", fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+            }
         }
 
         Spacer(Modifier.weight(1f))

@@ -1,7 +1,10 @@
 package com.apexaurum.pocket.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +27,18 @@ fun PairScreen(
 ) {
     var tokenInput by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    var showScanner by remember { mutableStateOf(false) }
+
+    if (showScanner) {
+        QrScannerScreen(
+            onTokenScanned = { token ->
+                showScanner = false
+                onPair(token)
+            },
+            onDismiss = { showScanner = false },
+        )
+        return
+    }
 
     Column(
         modifier = modifier
@@ -67,6 +82,45 @@ fun PairScreen(
         )
 
         Spacer(Modifier.height(24.dp))
+
+        // Scan QR button
+        OutlinedButton(
+            onClick = { showScanner = true },
+            modifier = Modifier.fillMaxWidth(),
+            border = BorderStroke(1.dp, Gold),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = Gold),
+        ) {
+            Icon(
+                Icons.Default.QrCodeScanner,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Scan QR Code",
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                modifier = Modifier.padding(vertical = 4.dp),
+            )
+        }
+
+        // Divider
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HorizontalDivider(modifier = Modifier.weight(1f), color = ApexBorder)
+            Text(
+                "or enter manually",
+                color = TextMuted,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(horizontal = 12.dp),
+            )
+            HorizontalDivider(modifier = Modifier.weight(1f), color = ApexBorder)
+        }
 
         // Token input
         OutlinedTextField(
