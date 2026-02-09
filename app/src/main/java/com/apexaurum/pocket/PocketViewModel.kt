@@ -162,11 +162,11 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Load chat history from cloud for the current agent. */
-    fun loadHistory() {
+    /** Load chat history from cloud for the given (or current) agent. */
+    fun loadHistory(agentOverride: String? = null) {
         viewModelScope.launch {
             try {
-                val agent = soul.value.selectedAgentId
+                val agent = agentOverride ?: soul.value.selectedAgentId
                 val resp = api?.getHistory(agent) ?: return@launch
                 // Persist conversation ID
                 resp.conversationId?.let { id ->
@@ -263,7 +263,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         val updated = soul.value.copy(selectedAgentId = agentId)
         saveSoul(updated)
         _messages.value = emptyList()
-        loadHistory()
+        loadHistory(agentId)
     }
 
     /** Sync soul state to cloud. */

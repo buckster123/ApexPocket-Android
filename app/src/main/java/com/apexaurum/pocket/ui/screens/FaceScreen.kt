@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -24,6 +25,7 @@ import com.apexaurum.pocket.soul.AffectiveState
 import com.apexaurum.pocket.soul.Expression
 import com.apexaurum.pocket.soul.SoulData
 import com.apexaurum.pocket.ui.theme.*
+import kotlin.random.Random
 
 /**
  * The Face screen — animated soul companion face.
@@ -39,6 +41,39 @@ fun FaceScreen(
     modifier: Modifier = Modifier,
 ) {
     val stateColor = soul.state.color()
+
+    // Care animation triggers
+    var loveAnimTrigger by remember { mutableIntStateOf(0) }
+    var pokeAnimTrigger by remember { mutableIntStateOf(0) }
+
+    // Love heart particle animation
+    val loveProgress = remember { Animatable(0f) }
+    val heartOffsets = remember { mutableStateOf(List(5) { Random.nextFloat() * 2f - 1f }) }
+    LaunchedEffect(loveAnimTrigger) {
+        if (loveAnimTrigger > 0) {
+            heartOffsets.value = List(5) { Random.nextFloat() * 2f - 1f }
+            loveProgress.snapTo(0f)
+            loveProgress.animateTo(1f, tween(800, easing = FastOutSlowInEasing))
+        }
+    }
+
+    // Poke ripple animation
+    val pokeProgress = remember { Animatable(0f) }
+    LaunchedEffect(pokeAnimTrigger) {
+        if (pokeAnimTrigger > 0) {
+            pokeProgress.snapTo(0f)
+            pokeProgress.animateTo(1f, tween(400, easing = FastOutSlowInEasing))
+        }
+    }
+
+    val wrappedOnLove = {
+        loveAnimTrigger++
+        onLove()
+    }
+    val wrappedOnPoke = {
+        pokeAnimTrigger++
+        onPoke()
+    }
 
     // Blink animation
     val blinkAlpha by rememberInfiniteTransition(label = "blink").animateFloat(
@@ -98,11 +133,43 @@ fun FaceScreen(
                 .size(280.dp)
                 .pointerInput(Unit) {
                     detectTapGestures { offset ->
-                        if (offset.x < size.width / 2) onLove() else onPoke()
+                        if (offset.x < size.width / 2) wrappedOnLove() else wrappedOnPoke()
                     }
                 },
         ) {
             drawFace(soul.expression, blinkAlpha, breathe, stateColor)
+
+            val cx = size.width / 2
+            val cy = size.height / 2
+
+            // Love animation — heart particles floating up
+            if (loveProgress.value > 0f && loveProgress.value < 1f) {
+                val p = loveProgress.value
+                heartOffsets.value.forEachIndexed { i, xOff ->
+                    val delay = i * 0.1f
+                    val localP = ((p - delay) / (1f - delay)).coerceIn(0f, 1f)
+                    if (localP > 0f) {
+                        val hx = cx + xOff * 60f
+                        val hy = cy - localP * 120f
+                        val alpha = (1f - localP).coerceAtLeast(0f)
+                        val heartSize = 8f + i * 2f
+                        drawHeartEye(hx, hy, heartSize, stateColor.copy(alpha = alpha), 1f)
+                    }
+                }
+            }
+
+            // Poke animation — expanding gold ripple
+            if (pokeProgress.value > 0f && pokeProgress.value < 1f) {
+                val p = pokeProgress.value
+                val radius = p * size.minDimension * 0.45f
+                val alpha = (1f - p).coerceAtLeast(0f)
+                drawCircle(
+                    color = Gold.copy(alpha = alpha * 0.6f),
+                    radius = radius,
+                    center = Offset(cx, cy),
+                    style = Stroke(width = 3f),
+                )
+            }
         }
 
         // Love / Poke buttons
@@ -113,7 +180,7 @@ fun FaceScreen(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             OutlinedButton(
-                onClick = onLove,
+                onClick = { wrappedOnLove() },
                 modifier = Modifier.weight(1f),
                 border = BorderStroke(1.dp, stateColor.copy(alpha = 0.5f)),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = stateColor),
@@ -123,7 +190,7 @@ fun FaceScreen(
                 Text("Love", fontFamily = FontFamily.Monospace, fontSize = 13.sp)
             }
             OutlinedButton(
-                onClick = onPoke,
+                onClick = { wrappedOnPoke() },
                 modifier = Modifier.weight(1f),
                 border = BorderStroke(1.dp, Gold.copy(alpha = 0.5f)),
                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Gold),

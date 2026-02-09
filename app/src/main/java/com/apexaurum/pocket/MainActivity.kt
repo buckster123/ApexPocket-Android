@@ -1,17 +1,27 @@
 package com.apexaurum.pocket
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -50,7 +60,19 @@ class MainActivity : ComponentActivity() {
                 val isSpeaking by vm.isSpeaking.collectAsStateWithLifecycle()
                 val autoRead by vm.autoRead.collectAsStateWithLifecycle()
                 val pendingVoiceText by vm.pendingVoiceText.collectAsStateWithLifecycle()
+                val memories by vm.memories.collectAsStateWithLifecycle()
+                val memoriesLoading by vm.memoriesLoading.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
+
+                // Request notification permission on Android 13+
+                if (Build.VERSION.SDK_INT >= 33) {
+                    val notifLauncher = rememberLauncherForActivityResult(
+                        ActivityResultContracts.RequestPermission()
+                    ) { _ -> }
+                    LaunchedEffect(Unit) {
+                        notifLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
 
                 if (token == null) {
                     // Not paired — show pairing screen
@@ -69,6 +91,9 @@ class MainActivity : ComponentActivity() {
                         messages = messages,
                         isChatting = isChatting,
                         cloudState = cloudState,
+                        agents = agents,
+                        memories = memories,
+                        memoriesLoading = memoriesLoading,
                         isListening = isListening,
                         isSpeaking = isSpeaking,
                         autoRead = autoRead,
@@ -94,6 +119,8 @@ class MainActivity : ComponentActivity() {
 
 enum class VibratePattern { LOVE, POKE, SYNC }
 
+private data class TabItem(val title: String, val icon: ImageVector)
+
 /** The tab-based main screen shown after pairing. */
 @Composable
 private fun MainScreen(
@@ -102,6 +129,9 @@ private fun MainScreen(
     messages: List<ChatMessage>,
     isChatting: Boolean,
     cloudState: CloudState,
+    agents: List<com.apexaurum.pocket.cloud.AgentInfo>,
+    memories: List<com.apexaurum.pocket.cloud.MemoryItem>,
+    memoriesLoading: Boolean,
     isListening: Boolean,
     isSpeaking: Boolean,
     autoRead: Boolean,
@@ -110,7 +140,12 @@ private fun MainScreen(
     onVibrate: (VibratePattern) -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Face", "Chat", "Status")
+    val tabs = listOf(
+        TabItem("Face", Icons.Default.Face),
+        TabItem("Chat", Icons.Default.ChatBubbleOutline),
+        TabItem("Memories", Icons.Default.AutoAwesome),
+        TabItem("Status", Icons.Default.Info),
+    )
 
     Scaffold(
         containerColor = ApexBlack,
@@ -119,14 +154,14 @@ private fun MainScreen(
                 containerColor = ApexDarkSurface,
                 contentColor = Gold,
             ) {
-                tabs.forEachIndexed { index, title ->
+                tabs.forEachIndexed { index, tab ->
                     NavigationBarItem(
                         selected = selectedTab == index,
                         onClick = { selectedTab = index },
-                        icon = {},
+                        icon = { Icon(tab.icon, contentDescription = tab.title) },
                         label = {
                             Text(
-                                title,
+                                tab.title,
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 13.sp,
                             )
@@ -134,6 +169,7 @@ private fun MainScreen(
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Gold,
                             selectedTextColor = Gold,
+                            unselectedIconColor = TextMuted,
                             unselectedTextColor = TextMuted,
                             indicatorColor = Gold.copy(alpha = 0.12f),
                         ),
@@ -165,6 +201,8 @@ private fun MainScreen(
                     messages = messages,
                     isChatting = isChatting,
                     onSend = { vm.sendMessage(it) },
+                    agents = agents,
+                    onSelectAgent = { vm.selectAgent(it) },
                     isListening = isListening,
                     isSpeaking = isSpeaking,
                     autoRead = autoRead,
@@ -175,7 +213,12 @@ private fun MainScreen(
                     onClearPendingVoice = { vm.clearPendingVoiceText() },
                     micAvailable = micAvailable,
                 )
-                2 -> StatusScreen(
+                2 -> MemoriesScreen(
+                    memories = memories,
+                    isLoading = memoriesLoading,
+                    onRefresh = { vm.fetchMemories() },
+                )
+                3 -> StatusScreen(
                     soul = soul,
                     cloudState = cloudState,
                     onSync = {

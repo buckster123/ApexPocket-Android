@@ -4,6 +4,7 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,6 +14,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
@@ -25,6 +28,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexaurum.pocket.ChatMessage
+import com.apexaurum.pocket.cloud.AgentInfo
 import com.apexaurum.pocket.soul.SoulData
 import com.apexaurum.pocket.ui.components.ListeningIndicator
 import com.apexaurum.pocket.ui.theme.*
@@ -35,6 +39,8 @@ fun ChatScreen(
     messages: List<ChatMessage>,
     isChatting: Boolean,
     onSend: (String) -> Unit,
+    agents: List<AgentInfo> = emptyList(),
+    onSelectAgent: (String) -> Unit = {},
     isListening: Boolean = false,
     isSpeaking: Boolean = false,
     autoRead: Boolean = false,
@@ -47,6 +53,7 @@ fun ChatScreen(
     modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf("") }
+    var showAgentDropdown by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     // Runtime permission launcher for RECORD_AUDIO
@@ -74,20 +81,68 @@ fun ChatScreen(
     }
 
     Column(modifier = modifier.fillMaxSize().imePadding()) {
-        // Agent header with auto-read toggle
+        // Agent header with dropdown + auto-read toggle
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "talking to ${soul.selectedAgentId}",
-                color = Gold,
-                fontSize = 13.sp,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.weight(1f),
-            )
+            Box(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.clickable { showAgentDropdown = true },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "talking to ${soul.selectedAgentId}",
+                        color = Gold,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                    Icon(
+                        Icons.Default.ArrowDropDown,
+                        contentDescription = "Select agent",
+                        tint = Gold,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
+                DropdownMenu(
+                    expanded = showAgentDropdown,
+                    onDismissRequest = { showAgentDropdown = false },
+                    containerColor = ApexSurface,
+                ) {
+                    agents.forEach { agent ->
+                        val selected = agent.name == soul.selectedAgentId
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        agent.name,
+                                        color = if (selected) Gold else TextPrimary,
+                                        fontSize = 13.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                    )
+                                    if (agent.description.isNotBlank()) {
+                                        Text(
+                                            agent.description,
+                                            color = TextMuted,
+                                            fontSize = 11.sp,
+                                            fontFamily = FontFamily.Monospace,
+                                        )
+                                    }
+                                }
+                            },
+                            onClick = {
+                                onSelectAgent(agent.name)
+                                showAgentDropdown = false
+                            },
+                            trailingIcon = if (selected) {
+                                { Icon(Icons.Default.Check, null, tint = Gold, modifier = Modifier.size(16.dp)) }
+                            } else null,
+                        )
+                    }
+                }
+            }
             if (micAvailable) {
                 Text(
                     text = "auto-read",

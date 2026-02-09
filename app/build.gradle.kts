@@ -83,6 +83,13 @@ dependencies {
     // Local persistence
     implementation(libs.androidx.datastore.preferences)
 
+    // Glance (home screen widget)
+    implementation(libs.glance.appwidget)
+    implementation(libs.glance.material3)
+
+    // WorkManager (nudge notifications)
+    implementation(libs.work.runtime.ktx)
+
     // QR scanning (CameraX + ML Kit)
     implementation(libs.camera.core)
     implementation(libs.camera.camera2)
