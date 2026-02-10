@@ -202,7 +202,7 @@ Wave 4F (Council)       ✓ SHIPPED (history, live streaming, butt-in triggers r
 
 Wave 5A (Living Companion) ✓ SHIPPED (time-awareness, nudges, briefings, pending messages)
 Wave 5B (Pocket Council)   ✓ SHIPPED (creation UI, quick-council-from-chat, templates)
-Wave 5C (Rich Media Chat)
+Wave 5C (Rich Media Chat)  ✓ SHIPPED (link cards, audio cards, file cards)
 Wave 5D (Enhanced Widget)
 ```
 
@@ -237,33 +237,20 @@ Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awar
   - Gold "Create Council" button with loading spinner
 - [x] Quick Council from Chat: long-press agent message → "Discuss in Council" (Forum icon)
   - Cross-tab navigation: Chat → Pulse → Council List with topic pre-filled → sheet auto-opens
-- **Note:** Council creation + navigation works. Auto-starting deliberation from Android (WS resume) and butt-in round triggering need further WS timing work. Councils can be started on web after mobile creation.
+- [x] Backend WS fixes: `resume` accepts `"pending"` state (not just `"paused"`), butt-in auto-triggers +1 round
+- [x] Android: polls `councilWs.connected` up to 5s before sending resume (replaces blind 500ms delay)
 
 ---
 
-### Wave 5C: Rich Media Chat — Images, Music, Links In-Flow
-
-**Goal:** Chat becomes a rich canvas. The agents' creative output becomes tangible, not just described.
-
-#### Image Rendering
-- When tool results contain image URLs (music cover art, generated images), render inline as thumbnail cards
-- Tap to view full-size in a dialog/viewer
-- Backend flags image URLs in tool results with a `media_type` field
-
-#### Music From Pocket
-- Enable `music_generate` / `music_status` stretch tools in pocket tool whitelist
-- Audio playback card in chat — embedded player with play/pause, cover art, title
-- Music generation status: "Generating..." spinner → playback card when ready
-- Backend polls Suno status and sends SSE updates
-
-#### Link Previews
-- When `web_search` / `web_fetch` results contain URLs, render a preview card
-- Title, description snippet, domain badge
-- Tap to open in browser
-
-#### File Cards
-- When vault tools return files, show filename + type badge + size
-- Tap to download or preview (text files inline, others via intent)
+### Wave 5C: Rich Media Chat (Shipped)
+- [x] Backend: `_extract_media()` in pocket.py — parses tool result JSON, extracts structured metadata before 500-char truncation, adds optional `media` field to SSE `tool_result` events
+- [x] Android: `MediaInfo`/`MediaItem` data classes, `SseClient` parses media JSON, `ToolInfo` extended
+- [x] LinkResultCard: gold title, VajraBlue domain, snippet text, tap opens browser (web_search, web_fetch)
+- [x] AudioResultCard: gold-tinted card with ▶ play triangle, title, M:SS duration, tap opens audio player (music_status)
+- [x] FileResultCard: emoji icons (📁📄💻), filename, size + MIME type (vault_list, vault_read)
+- [x] PlainToolResultCard: existing fallback for tools without extractable media
+- [x] `formatFileSize()` helper for human-readable sizes
+- **Note:** Image rendering deferred — no tools currently return standalone image URLs. web_fetch may contain inline image URLs in HTML content but needs site-specific parsing. Will revisit if use cases emerge.
 
 ---
 
@@ -297,9 +284,9 @@ Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awar
 
 ```
 Wave 5A (Living Companion) ✓ SHIPPED — proactive nudges, briefings, time-awareness, agent-initiated messages
-Wave 5B (Pocket Council)   ✓ SHIPPED — creation UI, quick-council-from-chat, templates (auto-start WS needs polish)
-Wave 5C (Rich Media Chat)  → NEXT — inline images, music playback, link previews, file cards
-Wave 5D (Enhanced Widget)  — live widget, Android shortcuts, ambient/screensaver mode
+Wave 5B (Pocket Council)   ✓ SHIPPED — creation UI, quick-council-from-chat, templates, WS fixes
+Wave 5C (Rich Media Chat)  ✓ SHIPPED — link cards, audio cards, file cards, media extraction pipeline
+Wave 5D (Enhanced Widget)  → NEXT — live widget, Android shortcuts, ambient/screensaver mode
 ```
 
 **5C and 5D are independent** and can be ordered by desire.
