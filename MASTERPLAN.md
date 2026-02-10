@@ -163,14 +163,15 @@ Curated from the 66 tools in the backend. Chosen for: text-friendly output, usef
 
 ---
 
-### Wave 4E: Village Pulse Live (Future)
-
-**Goal:** Real-time village activity stream via WebSocket.
-
-- Connect to `/ws/village?token=JWT` (needs device token -> JWT bridge)
-- Stream `tool_start`, `tool_complete`, `agent_thinking` events
-- Live ticker or animated village view
-- Battery-conscious: connect only when foregrounded
+### Wave 4E: Village Pulse Live (Shipped)
+- [x] Backend: `POST /pocket/ws-token` — device token → 1-hour JWT bridge
+- [x] `VillageWsClient.kt` — OkHttp WebSocket, auto-reconnect (3s→30s backoff), 1008 auth stop
+- [x] 6th tab: Pulse — real-time event feed (zone badges, agent colors, success/error, relative time)
+- [x] Face ticker: gold text fades in on village events, auto-fades after 5s
+- [x] Tab badge: gold count badge on Pulse tab (caps "9+"), clears on tap
+- [x] Face reactions: tool_complete→HAPPY(3s), tool_error→SAD(3s), music_complete→EXCITED(5s), agent_thinking→THINKING(3s)
+- [x] Lifecycle-aware: connects on resume, disconnects on pause (battery-conscious)
+- [x] Tab order: Face / Chat / Agora / Pulse / Memories / Status
 
 ---
 
@@ -193,15 +194,13 @@ Wave 4A (Streaming)     ✓ SHIPPED
 Wave 4B (Pocket Tools)  ✓ SHIPPED (12 tools: web, code, agora, music, vault, kb)
 Wave 4C (Agora Feed)    ✓ SHIPPED (5th tab, reactions, pagination)
 Wave 4D (Chat Enhance)  ✓ SHIPPED (long-press menu, image vision, remember, regenerate)
+Wave 4E (Pulse Live)    ✓ SHIPPED (6th tab, face ticker, badges, expression reactions)
                            |
                            v
-                    Wave 4E (Pulse Live) ← NEXT
-                           |
-                           v
-                    Wave 4F (Council Spectator)
+                    Wave 4F (Council Spectator) ← NEXT
 ```
 
-4E/4F require WebSocket auth infrastructure (device token → JWT bridge).
+4F reuses the JWT bridge from 4E. Needs council WebSocket endpoint + spectator UI.
 
 ---
 
