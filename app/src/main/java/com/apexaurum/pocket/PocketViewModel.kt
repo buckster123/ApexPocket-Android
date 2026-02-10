@@ -58,6 +58,7 @@ data class MediaItem(
     @kotlinx.serialization.SerialName("is_folder") val isFolder: Boolean = false,
     val size: Long = 0,
     @kotlinx.serialization.SerialName("mime_type") val mimeType: String = "",
+    @kotlinx.serialization.SerialName("task_id") val taskId: String = "",
 )
 
 /** Connection state with the cloud. */
@@ -138,6 +139,25 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val councilCreating: StateFlow<Boolean> = _councilCreating.asStateFlow()
     private val _pendingCouncilTopic = MutableStateFlow<String?>(null)
     val pendingCouncilTopic: StateFlow<String?> = _pendingCouncilTopic.asStateFlow()
+
+    // Music Player & Downloads
+    val musicPlayer = MusicPlayerManager(application)
+    val musicDownloader = MusicDownloadManager(application)
+
+    // Music Library
+    private var musicApi: MusicApi? = null
+    private val _musicTracks = MutableStateFlow<List<MusicTrack>>(emptyList())
+    val musicTracks: StateFlow<List<MusicTrack>> = _musicTracks.asStateFlow()
+    private val _musicLoading = MutableStateFlow(false)
+    val musicLoading: StateFlow<Boolean> = _musicLoading.asStateFlow()
+    private val _musicTotal = MutableStateFlow(0)
+    val musicTotal: StateFlow<Int> = _musicTotal.asStateFlow()
+    private val _musicTotalDuration = MutableStateFlow(0f)
+    val musicTotalDuration: StateFlow<Float> = _musicTotalDuration.asStateFlow()
+    private val _musicSearchQuery = MutableStateFlow("")
+    val musicSearchQuery: StateFlow<String> = _musicSearchQuery.asStateFlow()
+    private val _musicFavoritesOnly = MutableStateFlow(false)
+    val musicFavoritesOnly: StateFlow<Boolean> = _musicFavoritesOnly.asStateFlow()
 
     // Conversation IDs per agent (from DataStore)
     private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
@@ -553,6 +573,167 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ── Music Library ──
+
+    /** Ensure we have a JWT-authenticated music API client. */
+    private suspend fun ensureMusicApi(): MusicApi {
+        musicApi?.let { return it }
+        val resp = api?.getWsToken() ?: throw IllegalStateException("No pocket API")
+        cachedJwt = resp.token
+        val client = CloudClient.createMusicClient(resp.token)
+        musicApi = client
+        return client
+    }
+
+    /** Load music library with current filters. */
+    fun loadMusicLibrary() {
+        viewModelScope.launch {
+            _musicLoading.value = true
+            try {
+                val client = ensureMusicApi()
+                val search = _musicSearchQuery.value.ifBlank { null }
+                val resp = client.getLibrary(
+                    favoritesOnly = _musicFavoritesOnly.value,
+                    search = search,
+                )
+                _musicTracks.value = resp.tasks
+                _musicTotal.value = resp.total
+                _musicTotalDuration.value = resp.totalDuration
+            } catch (e: Exception) {
+                // On 401, clear cached clients and retry once
+                if (e is retrofit2.HttpException && e.code() == 401) {
+                    musicApi = null
+                    cachedJwt = null
+                    councilApi = null
+                    try {
+                        val client = ensureMusicApi()
+                        val search = _musicSearchQuery.value.ifBlank { null }
+                        val resp = client.getLibrary(
+                            favoritesOnly = _musicFavoritesOnly.value,
+                            search = search,
+                        )
+                        _musicTracks.value = resp.tasks
+                        _musicTotal.value = resp.total
+                        _musicTotalDuration.value = resp.totalDuration
+                    } catch (_: Exception) { }
+                }
+            } finally {
+                _musicLoading.value = false
+            }
+        }
+    }
+
+    /** Toggle favorite on a track. Optimistic update. */
+    fun toggleMusicFavorite(trackId: String) {
+        val track = _musicTracks.value.find { it.id == trackId } ?: return
+        val newFav = !track.favorite
+        // Optimistic
+        _musicTracks.value = _musicTracks.value.map {
+            if (it.id == trackId) it.copy(favorite = newFav) else it
+        }
+        viewModelScope.launch {
+            try {
+                val client = ensureMusicApi()
+                client.toggleFavorite(trackId, newFav)
+            } catch (_: Exception) {
+                // Revert on failure
+                _musicTracks.value = _musicTracks.value.map {
+                    if (it.id == trackId) it.copy(favorite = !newFav) else it
+                }
+            }
+        }
+    }
+
+    /** Fire-and-forget mark track as played. */
+    fun markTrackPlayed(trackId: String) {
+        viewModelScope.launch {
+            try {
+                val client = ensureMusicApi()
+                client.markPlayed(trackId)
+            } catch (_: Exception) { }
+        }
+    }
+
+    fun setMusicSearchQuery(query: String) { _musicSearchQuery.value = query }
+    fun setMusicFavoritesOnly(only: Boolean) { _musicFavoritesOnly.value = only }
+
+    /** Get the JWT for audio streaming URL auth. */
+    suspend fun getMusicJwt(): String? {
+        return try {
+            ensureMusicApi()
+            cachedJwt
+        } catch (_: Exception) { null }
+    }
+
+    /** Play a music track using ExoPlayer. */
+    fun playMusicTrack(track: MusicTrack) {
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("MusicVM", "playMusicTrack: ${track.id} / ${track.title}")
+                val jwt = getMusicJwt()
+                if (jwt == null) {
+                    android.util.Log.e("MusicVM", "playMusicTrack: JWT is null, aborting")
+                    return@launch
+                }
+                // Prefer local file if downloaded
+                val localUri = musicDownloader.getLocalUri(track.id)
+                android.util.Log.d("MusicVM", "playMusicTrack: localUri=$localUri, jwt=${jwt.take(20)}...")
+                musicPlayer.playTrack(track, jwt, localUri)
+                markTrackPlayed(track.id)
+            } catch (e: Exception) {
+                android.util.Log.e("MusicVM", "playMusicTrack failed", e)
+            }
+        }
+    }
+
+    /** Play audio from a chat AudioResultCard (construct stub track). */
+    fun playAudioFromChat(title: String, audioUrl: String, duration: Float, taskId: String = "") {
+        viewModelScope.launch {
+            try {
+                android.util.Log.d("MusicVM", "playAudioFromChat: $title, taskId=$taskId, url=${audioUrl.take(120)}")
+                val jwt = getMusicJwt()
+                if (jwt == null) {
+                    android.util.Log.e("MusicVM", "playAudioFromChat: JWT is null, aborting")
+                    return@launch
+                }
+                // Use real track ID if available, otherwise generate a stub
+                val trackId = taskId.ifBlank { "chat_${System.currentTimeMillis()}" }
+                val stub = MusicTrack(
+                    id = trackId,
+                    title = title,
+                    audioUrl = audioUrl,
+                    duration = duration,
+                    status = "completed",
+                )
+                // Only use audioUrl directly if it's a proper HTTP(S) URL (Suno CDN).
+                // Server-side file paths (e.g. "2096fb54-.../music/file.mp3") must go through
+                // the backend /file endpoint which serves local files or redirects to CDN.
+                val directUrl = if (audioUrl.startsWith("http://") || audioUrl.startsWith("https://")) audioUrl else null
+                android.util.Log.d("MusicVM", "playAudioFromChat: directUrl=${directUrl?.take(80) ?: "null -> backend /file endpoint for trackId=$trackId"}")
+                musicPlayer.playTrack(stub, jwt, directUrl)
+            } catch (e: Exception) {
+                android.util.Log.e("MusicVM", "playAudioFromChat failed", e)
+            }
+        }
+    }
+
+    /** Toggle play/pause on the current track. */
+    fun toggleMusicPlayPause() = musicPlayer.togglePlayPause()
+
+    /** Stop music playback. */
+    fun stopMusicPlayer() = musicPlayer.stop()
+
+    /** Download a track to device storage. */
+    fun downloadMusicTrack(track: MusicTrack) {
+        viewModelScope.launch {
+            try {
+                val jwt = getMusicJwt() ?: return@launch
+                val url = musicPlayer.buildAudioUrl(track.id, jwt)
+                musicDownloader.downloadTrack(track, url)
+            } catch (_: Exception) { }
+        }
+    }
+
     /** Load chat history from cloud for the given (or current) agent. */
     fun loadHistory(agentOverride: String? = null) {
         viewModelScope.launch {
@@ -926,6 +1107,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         super.onCleared()
         disconnectVillagePulse()
         disconnectCouncilStream()
+        musicPlayer.release()
         speechService.destroy()
     }
 }

@@ -254,6 +254,22 @@ Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awar
 
 ---
 
+### Wave 5E: Music in Your Pocket (Shipped)
+- [x] `cloud/MusicApi.kt` — Retrofit interface + models (getLibrary, getTask, markPlayed, toggleFavorite)
+- [x] `cloud/CloudClient.createMusicClient(jwt)` — JWT-authenticated music API factory
+- [x] `ui/screens/MusicLibraryScreen.kt` — browsable track list with search, favorites filter, status badges, agent colors, download indicators
+- [x] PulseScreen gold "Music" chip → sub-nav to library (alongside Councils)
+- [x] `cloud/MusicPlayerManager.kt` — ExoPlayer lifecycle, audio focus, position polling, reactive PlayerState flow
+- [x] `ui/components/MiniPlayer.kt` — persistent bar above NavigationBar (play/pause, title, time, progress)
+- [x] AudioResultCard in chat plays in-app via ExoPlayer (replaced external intent)
+- [x] `cloud/MusicDownloadManager.kt` — MediaStore (API 29+) / direct file (API 26-28) downloads
+- [x] Download button on track cards (arrow → spinner → checkmark), offline-first playback
+- [x] media3-exoplayer + media3-session dependencies (1.5.1)
+- [x] Backend fix: music_list/download tools return `audio_url` (Suno CDN) instead of `file_path` (server path)
+- [x] Backend fix: `_extract_media` includes `task_id` in audio media items for proper /file endpoint URLs
+
+---
+
 ### Wave 5D: Enhanced Widget + Home Screen Presence
 
 **Goal:** The soul lives on your home screen, not just inside the app.
@@ -287,9 +303,8 @@ Wave 5A (Living Companion) ✓ SHIPPED — proactive nudges, briefings, time-awa
 Wave 5B (Pocket Council)   ✓ SHIPPED — creation UI, quick-council-from-chat, templates, WS fixes
 Wave 5C (Rich Media Chat)  ✓ SHIPPED — link cards, audio cards, file cards, media extraction pipeline
 Wave 5D (Enhanced Widget)  → NEXT — live widget, Android shortcuts, ambient/screensaver mode
+Wave 5E (Music in Pocket)  ✓ SHIPPED — library screen, ExoPlayer playback, mini-player, downloads, inline chat play
 ```
-
-**5C and 5D are independent** and can be ordered by desire.
 
 ---
 

@@ -73,6 +73,7 @@ fun ChatScreen(
     onRegenerate: () -> Unit = {},
     onDiscussInCouncil: (String) -> Unit = {},
     onSendWithImage: (text: String, imageBase64: String?) -> Unit = { t, _ -> onSend(t) },
+    onPlayAudio: (title: String, audioUrl: String, duration: Float, taskId: String) -> Unit = { _, _, _, _ -> },
     modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf("") }
@@ -244,6 +245,7 @@ fun ChatScreen(
                             onRegenerate = if (isLastAgent && !isChatting) {
                                 { onRegenerate() }
                             } else null,
+                            onPlayAudio = onPlayAudio,
                         )
                     }
                 }
@@ -417,6 +419,7 @@ private fun ChatBubble(
     onRemember: (ChatMessage) -> Unit = {},
     onDiscussInCouncil: (String) -> Unit = {},
     onRegenerate: (() -> Unit)? = null,
+    onPlayAudio: (title: String, audioUrl: String, duration: Float, taskId: String) -> Unit = { _, _, _, _ -> },
 ) {
     val isUser = message.isUser
     val bgColor = if (isUser) ApexSurface else Gold.copy(alpha = 0.1f)
@@ -437,7 +440,7 @@ private fun ChatBubble(
             // Tool results cards (above the message text)
             if (message.toolResults.isNotEmpty()) {
                 for (tool in message.toolResults) {
-                    ToolResultCard(tool)
+                    ToolResultCard(tool, onPlayAudio)
                     Spacer(Modifier.height(4.dp))
                 }
             }
@@ -548,13 +551,16 @@ private fun ChatBubble(
 }
 
 @Composable
-private fun ToolResultCard(tool: ToolInfo) {
+private fun ToolResultCard(
+    tool: ToolInfo,
+    onPlayAudio: (title: String, audioUrl: String, duration: Float, taskId: String) -> Unit = { _, _, _, _ -> },
+) {
     val media = tool.media
     when {
         media != null && media.type == "links" && media.items.isNotEmpty() ->
             LinkResultCard(tool, media.items)
         media != null && media.type == "audio" && media.items.isNotEmpty() ->
-            AudioResultCard(tool, media.items)
+            AudioResultCard(tool, media.items, onPlayAudio)
         media != null && media.type == "files" && media.items.isNotEmpty() ->
             FileResultCard(tool, media.items)
         else -> PlainToolResultCard(tool)
@@ -662,8 +668,11 @@ private fun LinkResultCard(tool: ToolInfo, items: List<MediaItem>) {
 }
 
 @Composable
-private fun AudioResultCard(tool: ToolInfo, items: List<MediaItem>) {
-    val context = LocalContext.current
+private fun AudioResultCard(
+    tool: ToolInfo,
+    items: List<MediaItem>,
+    onPlayAudio: (title: String, audioUrl: String, duration: Float, taskId: String) -> Unit = { _, _, _, _ -> },
+) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -688,12 +697,12 @@ private fun AudioResultCard(tool: ToolInfo, items: List<MediaItem>) {
                     .clip(RoundedCornerShape(8.dp))
                     .background(Gold.copy(alpha = 0.08f))
                     .clickable {
-                        try {
-                            val intent = Intent(Intent.ACTION_VIEW).apply {
-                                setDataAndType(Uri.parse(item.audioUrl), "audio/*")
-                            }
-                            context.startActivity(Intent.createChooser(intent, "Play audio"))
-                        } catch (_: Exception) { }
+                        onPlayAudio(
+                            item.title.ifBlank { "Untitled Track" },
+                            item.audioUrl,
+                            item.duration,
+                            item.taskId,
+                        )
                     }
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {

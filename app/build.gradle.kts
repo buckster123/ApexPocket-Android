@@ -96,4 +96,8 @@ dependencies {
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.view)
     implementation(libs.mlkit.barcode)
+
+    // Media3 (ExoPlayer for in-app audio playback)
+    implementation(libs.media3.exoplayer)
+    implementation(libs.media3.session)
 }

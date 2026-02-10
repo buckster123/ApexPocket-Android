@@ -35,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.apexaurum.pocket.cloud.*
 import com.apexaurum.pocket.soul.Expression
+import com.apexaurum.pocket.ui.components.MiniPlayer
 import com.apexaurum.pocket.ui.screens.*
 import com.apexaurum.pocket.ui.theme.*
 
@@ -85,6 +86,15 @@ class MainActivity : ComponentActivity() {
                 val councilButtInSent by vm.councilButtInSent.collectAsStateWithLifecycle()
                 val councilCreating by vm.councilCreating.collectAsStateWithLifecycle()
                 val pendingCouncilTopic by vm.pendingCouncilTopic.collectAsStateWithLifecycle()
+                val musicTracks by vm.musicTracks.collectAsStateWithLifecycle()
+                val musicLoading by vm.musicLoading.collectAsStateWithLifecycle()
+                val musicTotal by vm.musicTotal.collectAsStateWithLifecycle()
+                val musicTotalDuration by vm.musicTotalDuration.collectAsStateWithLifecycle()
+                val musicSearchQuery by vm.musicSearchQuery.collectAsStateWithLifecycle()
+                val musicFavoritesOnly by vm.musicFavoritesOnly.collectAsStateWithLifecycle()
+                val musicPlayerState by vm.musicPlayer.playerState.collectAsStateWithLifecycle()
+                val currentPlayingTrack by vm.musicPlayer.currentTrack.collectAsStateWithLifecycle()
+                val musicDownloads by vm.musicDownloader.downloads.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
 
                 // Request notification permission on Android 13+
@@ -132,6 +142,15 @@ class MainActivity : ComponentActivity() {
                         councilButtInSent = councilButtInSent,
                         councilCreating = councilCreating,
                         pendingCouncilTopic = pendingCouncilTopic,
+                        musicTracks = musicTracks,
+                        musicLoading = musicLoading,
+                        musicTotal = musicTotal,
+                        musicTotalDuration = musicTotalDuration,
+                        musicSearchQuery = musicSearchQuery,
+                        musicFavoritesOnly = musicFavoritesOnly,
+                        musicPlayerState = musicPlayerState,
+                        currentPlayingTrack = currentPlayingTrack,
+                        musicDownloads = musicDownloads,
                         isListening = isListening,
                         isSpeaking = isSpeaking,
                         autoRead = autoRead,
@@ -185,6 +204,15 @@ private fun MainScreen(
     councilButtInSent: Boolean,
     councilCreating: Boolean,
     pendingCouncilTopic: String?,
+    musicTracks: List<com.apexaurum.pocket.cloud.MusicTrack>,
+    musicLoading: Boolean,
+    musicTotal: Int,
+    musicTotalDuration: Float,
+    musicSearchQuery: String,
+    musicFavoritesOnly: Boolean,
+    musicPlayerState: com.apexaurum.pocket.cloud.PlayerState,
+    currentPlayingTrack: com.apexaurum.pocket.cloud.MusicTrack?,
+    musicDownloads: Map<String, com.apexaurum.pocket.ui.screens.DownloadState>,
     isListening: Boolean,
     isSpeaking: Boolean,
     autoRead: Boolean,
@@ -201,13 +229,14 @@ private fun MainScreen(
         if (selectedTab != 3) pulseNav = "events"
     }
 
-    // Back handler for council sub-navigation
+    // Back handler for pulse sub-navigation
     BackHandler(selectedTab == 3 && pulseNav != "events") {
         when (pulseNav) {
             "council_detail" -> {
                 vm.clearCouncilDetail()
                 pulseNav = "council_list"
             }
+            "music" -> pulseNav = "events"
             else -> pulseNav = "events"
         }
     }
@@ -240,6 +269,16 @@ private fun MainScreen(
     Scaffold(
         containerColor = ApexBlack,
         bottomBar = {
+            Column {
+                // Mini player (when a track is playing)
+                if (currentPlayingTrack != null) {
+                    MiniPlayer(
+                        track = currentPlayingTrack,
+                        playerState = musicPlayerState,
+                        onTogglePlayPause = { vm.toggleMusicPlayPause() },
+                        onStop = { vm.stopMusicPlayer() },
+                    )
+                }
             NavigationBar(
                 containerColor = ApexDarkSurface,
                 contentColor = Gold,
@@ -281,6 +320,7 @@ private fun MainScreen(
                     )
                 }
             }
+            } // Column
         },
     ) { padding ->
         Box(
@@ -328,6 +368,7 @@ private fun MainScreen(
                         pulseNav = "council_list"
                     },
                     onSendWithImage = { text, img -> vm.sendMessageWithImage(text, img) },
+                    onPlayAudio = { title, url, dur, taskId -> vm.playAudioFromChat(title, url, dur, taskId) },
                 )
                 2 -> AgoraScreen(
                     posts = agoraPosts,
@@ -370,12 +411,42 @@ private fun MainScreen(
                             selectedCouncilId?.let { vm.submitButtIn(it, msg) }
                         },
                     )
+                    "music" -> MusicLibraryScreen(
+                        tracks = musicTracks,
+                        isLoading = musicLoading,
+                        total = musicTotal,
+                        totalDuration = musicTotalDuration,
+                        searchQuery = musicSearchQuery,
+                        favoritesOnly = musicFavoritesOnly,
+                        onSearchChange = { q ->
+                            vm.setMusicSearchQuery(q)
+                            vm.loadMusicLibrary()
+                        },
+                        onFavoritesToggle = { fav ->
+                            vm.setMusicFavoritesOnly(fav)
+                            vm.loadMusicLibrary()
+                        },
+                        onRefresh = { vm.loadMusicLibrary() },
+                        onToggleFavorite = { vm.toggleMusicFavorite(it) },
+                        onPlayTrack = { track ->
+                            vm.playMusicTrack(track)
+                        },
+                        onDownloadTrack = { track ->
+                            vm.downloadMusicTrack(track)
+                        },
+                        downloads = musicDownloads,
+                        onBack = { pulseNav = "events" },
+                    )
                     else -> PulseScreen(
                         events = villageEvents,
                         isConnected = villagePulseConnected,
                         onCouncilsClick = {
                             vm.fetchCouncilSessions()
                             pulseNav = "council_list"
+                        },
+                        onMusicClick = {
+                            vm.loadMusicLibrary()
+                            pulseNav = "music"
                         },
                     )
                 }
