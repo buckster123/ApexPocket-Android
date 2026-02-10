@@ -35,6 +35,29 @@ data class ToolInfo(
     val name: String,
     val result: String,
     val isError: Boolean = false,
+    val media: MediaInfo? = null,
+)
+
+/** Rich media attached to a tool result for rendering link/audio/file cards. */
+@Serializable
+data class MediaInfo(
+    val type: String,                    // "links" | "audio" | "files"
+    val items: List<MediaItem> = emptyList(),
+)
+
+@Serializable
+data class MediaItem(
+    val title: String = "",
+    val url: String = "",
+    val snippet: String = "",
+    val source: String = "",
+    @kotlinx.serialization.SerialName("audio_url") val audioUrl: String = "",
+    val duration: Float = 0f,
+    val name: String = "",
+    @kotlinx.serialization.SerialName("file_id") val fileId: String = "",
+    @kotlinx.serialization.SerialName("is_folder") val isFolder: Boolean = false,
+    val size: Long = 0,
+    @kotlinx.serialization.SerialName("mime_type") val mimeType: String = "",
 )
 
 /** Connection state with the cloud. */
@@ -775,7 +798,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     }
                 }
                 is SseEvent.ToolResult -> {
-                    toolResults.add(ToolInfo(event.name, event.result, event.isError))
+                    toolResults.add(ToolInfo(event.name, event.result, event.isError, event.media))
                     val msgs = _messages.value
                     if (msgs.isNotEmpty() && !msgs.last().isUser) {
                         _messages.value = msgs.dropLast(1) + msgs.last().copy(

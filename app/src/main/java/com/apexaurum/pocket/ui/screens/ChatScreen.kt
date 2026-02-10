@@ -2,6 +2,7 @@ package com.apexaurum.pocket.ui.screens
 
 import android.Manifest
 import android.content.Intent
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -44,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import com.apexaurum.pocket.ChatMessage
+import com.apexaurum.pocket.MediaItem
 import com.apexaurum.pocket.ToolInfo
 import com.apexaurum.pocket.cloud.AgentInfo
 import com.apexaurum.pocket.soul.SoulData
@@ -547,6 +549,20 @@ private fun ChatBubble(
 
 @Composable
 private fun ToolResultCard(tool: ToolInfo) {
+    val media = tool.media
+    when {
+        media != null && media.type == "links" && media.items.isNotEmpty() ->
+            LinkResultCard(tool, media.items)
+        media != null && media.type == "audio" && media.items.isNotEmpty() ->
+            AudioResultCard(tool, media.items)
+        media != null && media.type == "files" && media.items.isNotEmpty() ->
+            FileResultCard(tool, media.items)
+        else -> PlainToolResultCard(tool)
+    }
+}
+
+@Composable
+private fun PlainToolResultCard(tool: ToolInfo) {
     val borderColor = if (tool.isError) MaterialTheme.colorScheme.error else Gold.copy(alpha = 0.3f)
     Box(
         modifier = Modifier
@@ -578,6 +594,212 @@ private fun ToolResultCard(tool: ToolInfo) {
             }
         }
     }
+}
+
+@Composable
+private fun LinkResultCard(tool: ToolInfo, items: List<MediaItem>) {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = toolDisplayName(tool.name),
+            color = Gold.copy(alpha = 0.5f),
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+        )
+        items.forEach { item ->
+            val domain = try {
+                Uri.parse(item.url).host?.removePrefix("www.") ?: item.url
+            } catch (_: Exception) { item.url }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(ApexSurface)
+                    .clickable {
+                        try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(item.url)))
+                        } catch (_: Exception) { }
+                    }
+                    .padding(10.dp),
+            ) {
+                Column {
+                    if (item.title.isNotBlank()) {
+                        Text(
+                            text = item.title,
+                            color = Gold,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                        )
+                    }
+                    Text(
+                        text = domain,
+                        color = VajraBlue,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                    if (item.snippet.isNotBlank()) {
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            text = item.snippet,
+                            color = TextMuted,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            lineHeight = 14.sp,
+                            maxLines = 3,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AudioResultCard(tool: ToolInfo, items: List<MediaItem>) {
+    val context = LocalContext.current
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = toolDisplayName(tool.name),
+            color = Gold.copy(alpha = 0.5f),
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+        )
+        items.forEach { item ->
+            val durationText = if (item.duration > 0) {
+                val mins = (item.duration / 60).toInt()
+                val secs = (item.duration % 60).toInt()
+                "${mins}:${"%02d".format(secs)}"
+            } else ""
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Gold.copy(alpha = 0.08f))
+                    .clickable {
+                        try {
+                            val intent = Intent(Intent.ACTION_VIEW).apply {
+                                setDataAndType(Uri.parse(item.audioUrl), "audio/*")
+                            }
+                            context.startActivity(Intent.createChooser(intent, "Play audio"))
+                        } catch (_: Exception) { }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(
+                        text = "\u25B6",
+                        color = Gold,
+                        fontSize = 20.sp,
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.title.ifBlank { "Untitled Track" },
+                            color = Gold,
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                        )
+                        if (durationText.isNotBlank()) {
+                            Text(
+                                text = durationText,
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FileResultCard(tool: ToolInfo, items: List<MediaItem>) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Text(
+            text = toolDisplayName(tool.name),
+            color = Gold.copy(alpha = 0.5f),
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+        )
+        items.forEach { item ->
+            val icon = when {
+                item.isFolder -> "\uD83D\uDCC1"
+                item.mimeType.startsWith("text/") -> "\uD83D\uDCC4"
+                item.mimeType.contains("json") || item.mimeType.contains("javascript") || item.mimeType.contains("python") -> "\uD83D\uDCBB"
+                else -> "\uD83D\uDCC4"
+            }
+            val sizeText = if (!item.isFolder && item.size > 0) formatFileSize(item.size) else ""
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(ApexSurface)
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(text = icon, fontSize = 16.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.name,
+                            color = TextPrimary,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1,
+                        )
+                        if (sizeText.isNotBlank() || item.mimeType.isNotBlank()) {
+                            Text(
+                                text = listOfNotNull(
+                                    sizeText.ifBlank { null },
+                                    item.mimeType.ifBlank { null },
+                                ).joinToString(" \u00B7 "),
+                                color = TextMuted,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun formatFileSize(bytes: Long): String {
+    if (bytes < 1024) return "$bytes B"
+    val kb = bytes / 1024.0
+    if (kb < 1024) return "%.1f KB".format(kb)
+    val mb = kb / 1024.0
+    if (mb < 1024) return "%.1f MB".format(mb)
+    val gb = mb / 1024.0
+    return "%.1f GB".format(gb)
 }
 
 /** "While you were away" divider — centered text with horizontal lines. */

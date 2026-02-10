@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
@@ -20,7 +21,7 @@ sealed class SseEvent {
     data class Start(val conversationId: String?) : SseEvent()
     data class Token(val content: String) : SseEvent()
     data class ToolStart(val name: String) : SseEvent()
-    data class ToolResult(val name: String, val result: String, val isError: Boolean) : SseEvent()
+    data class ToolResult(val name: String, val result: String, val isError: Boolean, val media: com.apexaurum.pocket.MediaInfo? = null) : SseEvent()
     data class End(
         val expression: String,
         val careValue: Float,
@@ -81,13 +82,24 @@ fun streamPocketChat(
                 "tool_start" -> emit(
                     SseEvent.ToolStart(obj["name"]?.jsonPrimitive?.contentOrNull ?: "")
                 )
-                "tool_result" -> emit(
-                    SseEvent.ToolResult(
-                        name = obj["name"]?.jsonPrimitive?.contentOrNull ?: "",
-                        result = obj["result"]?.jsonPrimitive?.contentOrNull ?: "",
-                        isError = obj["is_error"]?.jsonPrimitive?.booleanOrNull ?: false,
+                "tool_result" -> {
+                    val mediaObj = obj["media"]?.let { mediaEl ->
+                        try {
+                            CloudClient.json.decodeFromJsonElement(
+                                com.apexaurum.pocket.MediaInfo.serializer(),
+                                mediaEl,
+                            )
+                        } catch (_: Exception) { null }
+                    }
+                    emit(
+                        SseEvent.ToolResult(
+                            name = obj["name"]?.jsonPrimitive?.contentOrNull ?: "",
+                            result = obj["result"]?.jsonPrimitive?.contentOrNull ?: "",
+                            isError = obj["is_error"]?.jsonPrimitive?.booleanOrNull ?: false,
+                            media = mediaObj,
+                        )
                     )
-                )
+                }
                 "end" -> emit(
                     SseEvent.End(
                         expression = obj["expression"]?.jsonPrimitive?.contentOrNull ?: "NEUTRAL",
