@@ -147,20 +147,19 @@ Curated from the 66 tools in the backend. Chosen for: text-friendly output, usef
 
 ---
 
-### Wave 4D: Chat Enhancements (Priority 3)
-
-**Goal:** Quality-of-life improvements to the chat experience.
-
-1. **Long-press message -> "Remember this"** (deferred from 3B)
-   - Sends message content to `POST /pocket/memories` with agent context
-   - Brief toast: "Remembered!"
-
-2. **Message actions menu**
-   - Copy, share, remember, regenerate
-
-3. **Image sharing**
-   - Attach photos from gallery to chat messages
-   - Backend receives as base64 or multipart, passes to Claude vision
+### Wave 4D: Chat Enhancements (Shipped)
+- [x] Long-press context menu on chat bubbles (`combinedClickable` + `DropdownMenu`)
+  - Copy — clipboard via `LocalClipboardManager`, "Copied!" snackbar
+  - Share — Android `Intent.ACTION_SEND` share sheet
+  - Remember — agent messages only, auto-key from first 5 words, type `"context"`, "Remembered!" snackbar
+  - Regenerate — last agent message only, removes exchange + re-sends user text
+- [x] Image sharing via Claude vision
+  - `PickVisualMedia()` photo picker (no permissions needed)
+  - `resizeAndEncodeImage()` — `inSampleSize` + scale to 1024px max, JPEG q80, base64
+  - `image_base64` field on `PocketChatRequest` + `ChatRequest`
+  - Backend builds Anthropic vision content blocks in `_prepare_pocket_chat()`
+  - Attach button (📎) in input bar, "Photo attached" indicator, photo label in user bubble
+  - 1.5MB base64 size guard on backend
 
 ---
 
@@ -193,18 +192,16 @@ Curated from the 66 tools in the backend. Chosen for: text-friendly output, usef
 Wave 4A (Streaming)     ✓ SHIPPED
 Wave 4B (Pocket Tools)  ✓ SHIPPED (12 tools: web, code, agora, music, vault, kb)
 Wave 4C (Agora Feed)    ✓ SHIPPED (5th tab, reactions, pagination)
+Wave 4D (Chat Enhance)  ✓ SHIPPED (long-press menu, image vision, remember, regenerate)
                            |
                            v
-                    Wave 4D (Chat Enhancements) ← NEXT
-                           |
-                           v
-                    Wave 4E (Pulse Live)
+                    Wave 4E (Pulse Live) ← NEXT
                            |
                            v
                     Wave 4F (Council Spectator)
 ```
 
-4D is UI-focused (long-press actions, copy, share). 4E/4F require WebSocket auth infrastructure (device token → JWT bridge).
+4E/4F require WebSocket auth infrastructure (device token → JWT bridge).
 
 ---
 

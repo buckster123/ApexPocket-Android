@@ -43,6 +43,11 @@ interface PocketApi {
         @Query("limit") limit: Int = 50,
     ): HistoryResponse
 
+    // ─── Village Pulse ────────────────────────────────────────────────
+
+    @POST("api/v1/pocket/ws-token")
+    suspend fun getWsToken(): WsTokenResponse
+
     // ─── Agora Feed ──────────────────────────────────────────────────
 
     @GET("api/v1/pocket/agora")
