@@ -21,11 +21,16 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import com.apexaurum.pocket.cloud.VillageEvent
 import com.apexaurum.pocket.soul.AffectiveState
 import com.apexaurum.pocket.soul.Expression
 import com.apexaurum.pocket.soul.SoulData
 import com.apexaurum.pocket.ui.theme.*
 import kotlin.random.Random
+import kotlinx.coroutines.delay
 
 /**
  * The Face screen — animated soul companion face.
@@ -38,6 +43,8 @@ fun FaceScreen(
     soul: SoulData,
     onLove: () -> Unit,
     onPoke: () -> Unit,
+    latestVillageEvent: VillageEvent? = null,
+    expressionOverride: Expression? = null,
     modifier: Modifier = Modifier,
 ) {
     val stateColor = soul.state.color()
@@ -137,7 +144,8 @@ fun FaceScreen(
                     }
                 },
         ) {
-            drawFace(soul.expression, blinkAlpha, breathe, stateColor)
+            val displayExpression = expressionOverride ?: soul.expression
+            drawFace(displayExpression, blinkAlpha, breathe, stateColor)
 
             val cx = size.width / 2
             val cy = size.height / 2
@@ -202,6 +210,9 @@ fun FaceScreen(
         }
 
         Spacer(Modifier.weight(1f))
+
+        // Village ticker
+        VillageTicker(latestVillageEvent)
 
         // Bottom info
         Text(
@@ -332,6 +343,44 @@ private fun DrawScope.drawFrown(cx: Float, cy: Float, width: Float, color: Color
 
 private fun DrawScope.drawNeutralMouth(cx: Float, cy: Float, width: Float, color: Color) {
     drawLine(color, Offset(cx - width, cy), Offset(cx + width, cy), strokeWidth = 3f)
+}
+
+/** Village event ticker — fades in/out on new events. */
+@Composable
+private fun VillageTicker(event: VillageEvent?) {
+    var visible by remember { mutableStateOf(false) }
+    var displayText by remember { mutableStateOf("") }
+
+    LaunchedEffect(event) {
+        if (event != null) {
+            val action = when (event.type) {
+                "tool_start" -> "using ${event.tool ?: "tool"}"
+                "tool_complete" -> "finished ${event.tool ?: "tool"}"
+                "tool_error" -> "failed ${event.tool ?: "tool"}"
+                "music_complete" -> "music ready"
+                "agent_thinking" -> "thinking..."
+                else -> event.type
+            }
+            displayText = "${event.agentId} $action"
+            visible = true
+            delay(5000)
+            visible = false
+        }
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(),
+        exit = fadeOut(),
+    ) {
+        Text(
+            text = displayText,
+            color = Gold.copy(alpha = 0.8f),
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(vertical = 4.dp),
+        )
+    }
 }
 
 /** Map affective state to UI color. */

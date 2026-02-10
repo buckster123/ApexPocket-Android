@@ -253,3 +253,25 @@ data class ReactResponse(
     @SerialName("reaction_type") val reactionType: String = "",
     @SerialName("reaction_count") val reactionCount: Int = 0,
 )
+
+// ─── Village Pulse Models ───────────────────────────────────────
+
+@Serializable
+data class WsTokenResponse(
+    val token: String,
+    @SerialName("expires_in") val expiresIn: Int = 3600,
+)
+
+@Serializable
+data class VillageEvent(
+    val type: String,
+    @SerialName("agent_id") val agentId: String = "SYSTEM",
+    val tool: String? = null,
+    val zone: String = "village_square",
+    @SerialName("result_preview") val resultPreview: String? = null,
+    val success: Boolean? = null,
+    @SerialName("duration_ms") val durationMs: Int? = null,
+    val error: String? = null,
+    val message: String? = null,
+    val timestamp: Long = System.currentTimeMillis(),
+)

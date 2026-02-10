@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
@@ -26,8 +27,13 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.apexaurum.pocket.cloud.VillageEvent
+import com.apexaurum.pocket.soul.Expression
 import com.apexaurum.pocket.ui.screens.*
 import com.apexaurum.pocket.ui.theme.*
 
@@ -65,6 +71,11 @@ class MainActivity : ComponentActivity() {
                 val memoriesLoading by vm.memoriesLoading.collectAsStateWithLifecycle()
                 val agoraPosts by vm.agoraPosts.collectAsStateWithLifecycle()
                 val agoraLoading by vm.agoraLoading.collectAsStateWithLifecycle()
+                val villageEvents by vm.villageEvents.collectAsStateWithLifecycle()
+                val villagePulseConnected by vm.villagePulseConnected.collectAsStateWithLifecycle()
+                val unseenPulseCount by vm.unseenPulseCount.collectAsStateWithLifecycle()
+                val latestTickerEvent by vm.latestTickerEvent.collectAsStateWithLifecycle()
+                val expressionOverride by vm.expressionOverride.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
 
                 // Request notification permission on Android 13+
@@ -99,6 +110,11 @@ class MainActivity : ComponentActivity() {
                         memoriesLoading = memoriesLoading,
                         agoraPosts = agoraPosts,
                         agoraLoading = agoraLoading,
+                        villageEvents = villageEvents,
+                        villagePulseConnected = villagePulseConnected,
+                        unseenPulseCount = unseenPulseCount,
+                        latestTickerEvent = latestTickerEvent,
+                        expressionOverride = expressionOverride,
                         isListening = isListening,
                         isSpeaking = isSpeaking,
                         autoRead = autoRead,
@@ -139,6 +155,11 @@ private fun MainScreen(
     memoriesLoading: Boolean,
     agoraPosts: List<com.apexaurum.pocket.cloud.AgoraPostItem>,
     agoraLoading: Boolean,
+    villageEvents: List<VillageEvent>,
+    villagePulseConnected: Boolean,
+    unseenPulseCount: Int,
+    latestTickerEvent: VillageEvent?,
+    expressionOverride: Expression?,
     isListening: Boolean,
     isSpeaking: Boolean,
     autoRead: Boolean,
@@ -151,9 +172,26 @@ private fun MainScreen(
         TabItem("Face", Icons.Default.Face),
         TabItem("Chat", Icons.Default.ChatBubbleOutline),
         TabItem("Agora", Icons.Default.Forum),
+        TabItem("Pulse", Icons.Default.FavoriteBorder),
         TabItem("Memories", Icons.Default.AutoAwesome),
         TabItem("Status", Icons.Default.Info),
     )
+
+    // Village Pulse lifecycle — connect on resume, disconnect on pause
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, cloudState) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    if (cloudState == CloudState.CONNECTED) vm.connectVillagePulse()
+                }
+                Lifecycle.Event.ON_PAUSE -> vm.disconnectVillagePulse()
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         containerColor = ApexBlack,
@@ -165,8 +203,23 @@ private fun MainScreen(
                 tabs.forEachIndexed { index, tab ->
                     NavigationBarItem(
                         selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        icon = { Icon(tab.icon, contentDescription = tab.title) },
+                        onClick = {
+                            selectedTab = index
+                            if (index == 3) vm.clearUnseenPulse()
+                        },
+                        icon = {
+                            if (index == 3 && unseenPulseCount > 0 && selectedTab != 3) {
+                                BadgedBox(badge = {
+                                    Badge(containerColor = Gold, contentColor = ApexBlack) {
+                                        Text(if (unseenPulseCount > 9) "9+" else "$unseenPulseCount")
+                                    }
+                                }) {
+                                    Icon(tab.icon, contentDescription = tab.title)
+                                }
+                            } else {
+                                Icon(tab.icon, contentDescription = tab.title)
+                            }
+                        },
                         label = {
                             Text(
                                 tab.title,
@@ -203,6 +256,8 @@ private fun MainScreen(
                         vm.poke()
                         onVibrate(VibratePattern.POKE)
                     },
+                    latestVillageEvent = latestTickerEvent,
+                    expressionOverride = expressionOverride,
                 )
                 1 -> ChatScreen(
                     soul = soul,
@@ -231,14 +286,18 @@ private fun MainScreen(
                     onLoadMore = { vm.loadMoreAgora() },
                     onReact = { postId, type -> vm.toggleReaction(postId, type) },
                 )
-                3 -> MemoriesScreen(
+                3 -> PulseScreen(
+                    events = villageEvents,
+                    isConnected = villagePulseConnected,
+                )
+                4 -> MemoriesScreen(
                     memories = memories,
                     isLoading = memoriesLoading,
                     onRefresh = { vm.fetchMemories() },
                     onSave = { k, v, t -> vm.saveMemory(k, v, t) },
                     onDelete = { vm.deleteMemory(it) },
                 )
-                4 -> StatusScreen(
+                5 -> StatusScreen(
                     soul = soul,
                     cloudState = cloudState,
                     onSync = {

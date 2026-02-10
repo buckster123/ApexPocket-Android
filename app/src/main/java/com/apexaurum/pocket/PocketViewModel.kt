@@ -8,6 +8,8 @@ import com.apexaurum.pocket.data.SoulRepository
 import com.apexaurum.pocket.soul.LoveEquation
 import com.apexaurum.pocket.soul.SoulData
 import com.apexaurum.pocket.voice.SpeechService
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
@@ -78,6 +80,19 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private var agoraCursor: String? = null
     private var agoraHasMore = true
 
+    // Village Pulse (WebSocket)
+    private val villageWs = VillageWsClient()
+    private val _villageEvents = MutableStateFlow<List<VillageEvent>>(emptyList())
+    val villageEvents: StateFlow<List<VillageEvent>> = _villageEvents.asStateFlow()
+    val villagePulseConnected: StateFlow<Boolean> = villageWs.connected
+    private val _unseenPulseCount = MutableStateFlow(0)
+    val unseenPulseCount: StateFlow<Int> = _unseenPulseCount.asStateFlow()
+    private val _latestTickerEvent = MutableStateFlow<VillageEvent?>(null)
+    val latestTickerEvent: StateFlow<VillageEvent?> = _latestTickerEvent.asStateFlow()
+    private val _expressionOverride = MutableStateFlow<com.apexaurum.pocket.soul.Expression?>(null)
+    val expressionOverride: StateFlow<com.apexaurum.pocket.soul.Expression?> = _expressionOverride.asStateFlow()
+    private var expressionOverrideJob: Job? = null
+
     // Conversation IDs per agent (from DataStore)
     private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -135,6 +150,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Un-pair from cloud. */
     fun unpair() {
+        disconnectVillagePulse()
         viewModelScope.launch {
             repo.clearToken()
             _messages.value = emptyList()
@@ -276,6 +292,53 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) {
                 loadAgoraFeed() // Revert on failure
             }
+        }
+    }
+
+    // ── Village Pulse ──
+
+    /** Connect to Village WebSocket for real-time events. */
+    fun connectVillagePulse() {
+        viewModelScope.launch {
+            try {
+                val resp = api?.getWsToken() ?: return@launch
+                villageWs.connect(resp.token, viewModelScope)
+                villageWs.events.collect { event ->
+                    if (event.type == "connection") return@collect
+                    _villageEvents.value = (listOf(event) + _villageEvents.value).take(50)
+                    _unseenPulseCount.value++
+                    _latestTickerEvent.value = event
+                    triggerExpressionOverride(event)
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Disconnect from Village WebSocket. */
+    fun disconnectVillagePulse() {
+        villageWs.disconnect()
+    }
+
+    /** Clear unseen pulse count (when user opens Pulse tab). */
+    fun clearUnseenPulse() {
+        _unseenPulseCount.value = 0
+    }
+
+    /** Trigger temporary face expression based on village event. */
+    private fun triggerExpressionOverride(event: VillageEvent) {
+        val expr = when (event.type) {
+            "tool_complete" -> if (event.success == true) com.apexaurum.pocket.soul.Expression.HAPPY else null
+            "tool_error" -> com.apexaurum.pocket.soul.Expression.SAD
+            "music_complete" -> com.apexaurum.pocket.soul.Expression.EXCITED
+            "agent_thinking" -> com.apexaurum.pocket.soul.Expression.THINKING
+            else -> null
+        } ?: return
+        val durationMs = if (event.type == "music_complete") 5000L else 3000L
+        expressionOverrideJob?.cancel()
+        _expressionOverride.value = expr
+        expressionOverrideJob = viewModelScope.launch {
+            delay(durationMs)
+            _expressionOverride.value = null
         }
     }
 
@@ -589,6 +652,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
 
     override fun onCleared() {
         super.onCleared()
+        disconnectVillagePulse()
         speechService.destroy()
     }
 }
