@@ -179,6 +179,18 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val autoRead: StateFlow<Boolean> = repo.autoReadFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
+    // ── Settings flows ──
+    val hapticEnabled: StateFlow<Boolean> = repo.hapticFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val notifAgentsEnabled: StateFlow<Boolean> = repo.notifAgentsFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val notifCouncilsEnabled: StateFlow<Boolean> = repo.notifCouncilsFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val notifMusicEnabled: StateFlow<Boolean> = repo.notifMusicFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val notifNudgesEnabled: StateFlow<Boolean> = repo.notifNudgesFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     // API client (created when token is set)
     private var api: PocketApi? = null
     private var streamingClient: OkHttpClient? = null
@@ -1091,6 +1103,25 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     fun clearPendingVoiceText() {
         _pendingVoiceText.value = null
     }
+
+    // ── Settings actions ──
+
+    fun toggleHaptic() { viewModelScope.launch { repo.saveHaptic(!hapticEnabled.value) } }
+    fun toggleNotifAgents() { viewModelScope.launch { repo.saveNotifAgents(!notifAgentsEnabled.value) } }
+    fun toggleNotifCouncils() { viewModelScope.launch { repo.saveNotifCouncils(!notifCouncilsEnabled.value) } }
+    fun toggleNotifMusic() { viewModelScope.launch { repo.saveNotifMusic(!notifMusicEnabled.value) } }
+    fun toggleNotifNudges() { viewModelScope.launch { repo.saveNotifNudges(!notifNudgesEnabled.value) } }
+
+    fun clearChat() {
+        _messages.value = emptyList()
+        viewModelScope.launch { repo.clearConversationIds() }
+    }
+
+    fun clearDownloads(): Int {
+        return musicDownloader.clearAll()
+    }
+
+    fun getDownloadSizeBytes(): Long = musicDownloader.getTotalSizeBytes()
 
     /** Fire-and-forget care report to cloud. */
     private fun reportCare(type: String, intensity: Float, currentE: Float) {

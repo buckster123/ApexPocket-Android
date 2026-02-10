@@ -124,6 +124,50 @@ class MusicDownloadManager(private val context: Context) {
         return null
     }
 
+    /** Total size of downloaded ApexPocket music files in bytes. */
+    fun getTotalSizeBytes(): Long {
+        if (Build.VERSION.SDK_INT >= 29) {
+            val resolver = context.contentResolver
+            val projection = arrayOf(MediaStore.Audio.Media.SIZE)
+            val selection = "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ?"
+            val selectionArgs = arrayOf("%ApexPocket%")
+            var total = 0L
+            resolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                projection, selection, selectionArgs, null
+            )?.use { cursor ->
+                val sizeCol = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+                while (cursor.moveToNext()) total += cursor.getLong(sizeCol)
+            }
+            return total
+        } else {
+            val dir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                "ApexPocket"
+            )
+            return dir.listFiles()?.sumOf { it.length() } ?: 0L
+        }
+    }
+
+    /** Delete all downloaded ApexPocket music files. */
+    fun clearAll(): Int {
+        _downloads.value = emptyMap()
+        if (Build.VERSION.SDK_INT >= 29) {
+            val resolver = context.contentResolver
+            val selection = "${MediaStore.Audio.Media.RELATIVE_PATH} LIKE ?"
+            val selectionArgs = arrayOf("%ApexPocket%")
+            return resolver.delete(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, selection, selectionArgs)
+        } else {
+            val dir = File(
+                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC),
+                "ApexPocket"
+            )
+            var count = 0
+            dir.listFiles()?.forEach { if (it.delete()) count++ }
+            return count
+        }
+    }
+
     private fun sanitizeFilename(name: String): String {
         return name.replace(Regex("[^a-zA-Z0-9._-]"), "_").take(50)
     }

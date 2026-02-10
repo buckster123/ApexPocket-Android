@@ -4,7 +4,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.work.*
-import com.apexaurum.pocket.widget.NudgeWorker
+import com.apexaurum.pocket.widget.NotificationWorker
 import com.apexaurum.pocket.widget.WidgetUpdateWorker
 import java.util.concurrent.TimeUnit
 
@@ -13,46 +13,72 @@ class ApexPocketApp : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Create notification channel for soul nudges
-        val channel = NotificationChannel(
-            NudgeWorker.CHANNEL_ID,
-            "Soul Whispers",
-            NotificationManager.IMPORTANCE_LOW,
-        ).apply {
-            description = "Gentle nudges when your soul companion misses you"
-        }
+        // ── Notification Channels ──────────────────────────────────────
         val nm = getSystemService(NotificationManager::class.java)
-        nm.createNotificationChannel(channel)
-
-        // Schedule periodic nudge worker (every 1 hour — backend controls rate-limiting)
-        val nudgeRequest = PeriodicWorkRequestBuilder<NudgeWorker>(
-            1, TimeUnit.HOURS,
-        ).setConstraints(
-            Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .setRequiresBatteryNotLow(true)
-                .build()
-        ).build()
-
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
-            "soul_nudge",
-            ExistingPeriodicWorkPolicy.KEEP,
-            nudgeRequest,
+        nm.createNotificationChannels(
+            listOf(
+                NotificationChannel(
+                    NotificationWorker.CHANNEL_WHISPERS,
+                    "Soul Whispers",
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = "Gentle nudges when your soul companion misses you"
+                },
+                NotificationChannel(
+                    NotificationWorker.CHANNEL_AGENTS,
+                    "Agent Messages",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = "Messages from your pocket agents"
+                },
+                NotificationChannel(
+                    NotificationWorker.CHANNEL_COUNCILS,
+                    "Council Alerts",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = "Council deliberation completions"
+                },
+                NotificationChannel(
+                    NotificationWorker.CHANNEL_MUSIC,
+                    "Music Alerts",
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = "Music generation completions"
+                },
+            )
         )
 
-        // Schedule periodic widget update (every 30 min — fetches village pulse)
-        val widgetRequest = PeriodicWorkRequestBuilder<WidgetUpdateWorker>(
-            30, TimeUnit.MINUTES,
-        ).setConstraints(
-            Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
-        ).build()
+        // ── Workers ────────────────────────────────────────────────────
 
-        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+        val wm = WorkManager.getInstance(this)
+
+        // Cancel legacy NudgeWorker (replaced by NotificationWorker)
+        wm.cancelUniqueWork("soul_nudge")
+        val networkConstraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .setRequiresBatteryNotLow(true)
+            .build()
+
+        // Notification worker — polls pending-messages + nudge (every 15 min)
+        wm.enqueueUniquePeriodicWork(
+            "pocket_notifications",
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<NotificationWorker>(
+                15, TimeUnit.MINUTES,
+            ).setConstraints(networkConstraints).build(),
+        )
+
+        // Widget update worker (every 30 min — fetches village pulse)
+        wm.enqueueUniquePeriodicWork(
             "widget_update",
             ExistingPeriodicWorkPolicy.KEEP,
-            widgetRequest,
+            PeriodicWorkRequestBuilder<WidgetUpdateWorker>(
+                30, TimeUnit.MINUTES,
+            ).setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            ).build(),
         )
     }
 }

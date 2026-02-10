@@ -44,11 +44,13 @@ class MainActivity : ComponentActivity() {
 
     private var vibrator: Vibrator? = null
     private var deepLinkTab: String? = null
+    private var deepLinkAgent: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         deepLinkTab = intent?.getStringExtra("tab")
+        deepLinkAgent = intent?.getStringExtra("agent")
 
         // Get vibrator service
         vibrator = if (android.os.Build.VERSION.SDK_INT >= 31) {
@@ -98,6 +100,7 @@ class MainActivity : ComponentActivity() {
                 val musicPlayerState by vm.musicPlayer.playerState.collectAsStateWithLifecycle()
                 val currentPlayingTrack by vm.musicPlayer.currentTrack.collectAsStateWithLifecycle()
                 val musicDownloads by vm.musicDownloader.downloads.collectAsStateWithLifecycle()
+                val hapticEnabled by vm.hapticEnabled.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
 
                 // Request notification permission on Android 13+
@@ -121,9 +124,16 @@ class MainActivity : ComponentActivity() {
                     )
                 } else {
                     // Paired — main app
-                    // Consume deep-link tab from widget
+                    // Consume deep-link extras from notifications/widget
                     val initialTab = deepLinkTab
+                    val initialAgent = deepLinkAgent
                     deepLinkTab = null
+                    deepLinkAgent = null
+
+                    // Auto-select agent if deep-linked from notification
+                    LaunchedEffect(initialAgent) {
+                        if (initialAgent != null) vm.selectAgent(initialAgent)
+                    }
 
                     MainScreen(
                         vm = vm,
@@ -164,7 +174,7 @@ class MainActivity : ComponentActivity() {
                         autoRead = autoRead,
                         pendingVoiceText = pendingVoiceText,
                         micAvailable = micAvailable,
-                        onVibrate = { pattern -> vibrate(pattern) },
+                        onVibrate = { pattern -> if (hapticEnabled) vibrate(pattern) },
                     )
                 }
             }
@@ -175,6 +185,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         deepLinkTab = intent.getStringExtra("tab")
+        deepLinkAgent = intent.getStringExtra("agent")
     }
 
     private fun vibrate(pattern: VibratePattern) {
@@ -287,7 +298,7 @@ private fun MainScreen(
         TabItem("Agora", Icons.Default.Forum),
         TabItem("Pulse", Icons.Default.FavoriteBorder),
         TabItem("Memories", Icons.Default.AutoAwesome),
-        TabItem("Status", Icons.Default.Info),
+        TabItem("Settings", Icons.Default.Info),
     )
 
     // Village Pulse lifecycle — connect on resume, disconnect on pause
@@ -497,15 +508,37 @@ private fun MainScreen(
                     onSave = { k, v, t -> vm.saveMemory(k, v, t) },
                     onDelete = { vm.deleteMemory(it) },
                 )
-                5 -> StatusScreen(
-                    soul = soul,
-                    cloudState = cloudState,
-                    onSync = {
-                        vm.syncToCloud()
-                        onVibrate(VibratePattern.SYNC)
-                    },
-                    onUnpair = { vm.unpair() },
-                )
+                5 -> {
+                    val settingsHaptic by vm.hapticEnabled.collectAsStateWithLifecycle()
+                    val notifAgents by vm.notifAgentsEnabled.collectAsStateWithLifecycle()
+                    val notifCouncils by vm.notifCouncilsEnabled.collectAsStateWithLifecycle()
+                    val notifMusic by vm.notifMusicEnabled.collectAsStateWithLifecycle()
+                    val notifNudges by vm.notifNudgesEnabled.collectAsStateWithLifecycle()
+                    SettingsScreen(
+                        soul = soul,
+                        cloudState = cloudState,
+                        autoRead = autoRead,
+                        hapticEnabled = settingsHaptic,
+                        notifAgents = notifAgents,
+                        notifCouncils = notifCouncils,
+                        notifMusic = notifMusic,
+                        notifNudges = notifNudges,
+                        onSync = {
+                            vm.syncToCloud()
+                            onVibrate(VibratePattern.SYNC)
+                        },
+                        onUnpair = { vm.unpair() },
+                        onToggleAutoRead = { vm.toggleAutoRead() },
+                        onToggleHaptic = { vm.toggleHaptic() },
+                        onToggleNotifAgents = { vm.toggleNotifAgents() },
+                        onToggleNotifCouncils = { vm.toggleNotifCouncils() },
+                        onToggleNotifMusic = { vm.toggleNotifMusic() },
+                        onToggleNotifNudges = { vm.toggleNotifNudges() },
+                        onClearChat = { vm.clearChat() },
+                        onClearDownloads = { vm.clearDownloads() },
+                        onGetDownloadSize = { vm.getDownloadSizeBytes() },
+                    )
+                }
             }
         }
     }

@@ -362,21 +362,28 @@ Waves 1–5 built the infrastructure and connected the pocket to the village. Th
 - [x] Nudge endpoint uses OLED variant (Haiku, 80-token output)
 - [ ] Verify distinct agent voices in pocket chat (needs user testing)
 
-### Wave 6B: Rich Notifications
-- [ ] Register 4 notification channels (soul_whispers, agent_messages, council_alerts, music_alerts)
-- [ ] Create `NotificationWorker` — multi-endpoint polling (pending-messages + nudge, 15-min cycle)
-- [ ] Deep-link intents: agent msg → Chat+agent, council → Pulse>Councils, music → Pulse>Music
-- [ ] `InboxStyle` grouped notifications for multiple agent messages
-- [ ] `RemoteInput` inline reply action for agent messages
-- [ ] Snooze action (re-fire after 30 min)
+### Wave 6B: Rich Notifications (Shipped)
+- [x] Register 4 notification channels (soul_whispers, agent_messages, council_alerts, music_alerts)
+- [x] Create `NotificationWorker` — multi-endpoint polling (pending-messages + nudge, 15-min cycle)
+- [x] Deep-link intents: agent msg → Chat+agent, council → Pulse>Councils, music → Pulse>Music
+- [x] InboxStyle grouped notifications for 3+ agent messages
+- [x] Agent-colored notification accents (Gold/Cyan/Pink/Purple)
+- [x] Legacy NudgeWorker cancelled, replaced by NotificationWorker
+- [x] Notification toggles respected by worker (from DataStore prefs)
+- [ ] RemoteInput inline reply (deferred — stretch goal)
+- [ ] Snooze action (deferred — stretch goal)
 
-### Wave 6C: Settings Screen
-- [ ] Create `SettingsScreen.kt` — replaces StatusScreen (tab 5)
-- [ ] Collapsible sections: Soul Status, Cloud, Notifications, Voice & Display, Data Management, About
-- [ ] Notification toggle per channel (persisted in DataStore)
-- [ ] Data management: clear chat, clear downloads (show MB), clear widget cache
-- [ ] Move auto-read TTS toggle from chat to settings
-- [ ] Add haptic feedback toggle
+### Wave 6C: Settings Screen (Shipped)
+- [x] Create `SettingsScreen.kt` — replaces StatusScreen (tab 5, renamed to "Settings")
+- [x] Collapsible Soul Status section (state, E, floor, peak, personality traits)
+- [x] Cloud section (status, agent, device, Sync/Unpair)
+- [x] Notifications section — 4 toggles per channel (persisted in DataStore)
+- [x] Voice & Display section — auto-read TTS + haptic feedback toggles
+- [x] Data Management section — clear chat (with confirm), clear downloads (shows MB)
+- [x] About section — version, backend, quote
+- [x] Haptic feedback toggle wired to vibration system
+- [x] 5 new DataStore keys (haptic + 4 notification toggles)
+- [x] MusicDownloadManager: clearAll() + getTotalSizeBytes()
 
 ### Wave 6D: Offline Mode
 - [ ] Add Room database (4 entities: CachedMessage, CachedAgent, CachedMemory, OfflineAction)
@@ -400,8 +407,8 @@ Waves 1–5 built the infrastructure and connected the pocket to the village. Th
 
 ```
 Wave 6A (PAC LITE)         → SHIPPED — 3 personality tiers, backend-only
-Wave 6B (Notifications)    → Android: new channels, worker, deep-links
-Wave 6C (Settings)         → Android: settings UI, prefs, data mgmt
+Wave 6B (Notifications)    → SHIPPED — 4 channels, NotificationWorker, deep-links
+Wave 6C (Settings)         → SHIPPED — 6-section settings, toggles, data mgmt
 Wave 6D (Offline Mode)     → Android: Room, repositories, sync (largest)
 Wave 6E (Wear OS)          → Deferred — shared module prep can start early
 ```

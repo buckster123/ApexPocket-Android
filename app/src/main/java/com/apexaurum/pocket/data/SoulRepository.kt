@@ -41,6 +41,13 @@ class SoulRepository(private val context: Context) {
         val CONVERSATION_IDS = stringPreferencesKey("conversation_ids")
         val LAST_BRIEFING_DATE = stringPreferencesKey("last_briefing_date")
 
+        // Settings keys
+        val HAPTIC_ENABLED = booleanPreferencesKey("haptic_enabled")
+        val NOTIF_AGENTS = booleanPreferencesKey("notif_agents_enabled")
+        val NOTIF_COUNCILS = booleanPreferencesKey("notif_councils_enabled")
+        val NOTIF_MUSIC = booleanPreferencesKey("notif_music_enabled")
+        val NOTIF_NUDGES = booleanPreferencesKey("notif_nudges_enabled")
+
         // Widget state keys (written by ViewModel, read by SoulWidget)
         val WIDGET_EXPRESSION = stringPreferencesKey("widget_expression")
         val WIDGET_MUSIC_TITLE = stringPreferencesKey("widget_music_title")
@@ -203,6 +210,35 @@ class SoulRepository(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[Keys.WIDGET_PULSE_JSON] = json
         }
+    }
+
+    // ── Settings ──
+
+    val hapticFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.HAPTIC_ENABLED] ?: true }
+    val notifAgentsFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIF_AGENTS] ?: true }
+    val notifCouncilsFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIF_COUNCILS] ?: true }
+    val notifMusicFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIF_MUSIC] ?: true }
+    val notifNudgesFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIF_NUDGES] ?: true }
+
+    suspend fun saveHaptic(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.HAPTIC_ENABLED] = enabled }
+    }
+    suspend fun saveNotifAgents(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.NOTIF_AGENTS] = enabled }
+    }
+    suspend fun saveNotifCouncils(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.NOTIF_COUNCILS] = enabled }
+    }
+    suspend fun saveNotifMusic(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.NOTIF_MUSIC] = enabled }
+    }
+    suspend fun saveNotifNudges(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.NOTIF_NUDGES] = enabled }
+    }
+
+    /** Clear all conversation IDs (used by settings clear-chat). */
+    suspend fun clearConversationIds() {
+        context.dataStore.edit { it[Keys.CONVERSATION_IDS] = "{}" }
     }
 
     /** Save a conversation ID for a specific agent. */

@@ -20,13 +20,13 @@ ApexPocket is the Android companion app for the ApexAurum Cloud platform. It mir
 
 ### 1. SSH to build machine
 ```bash
-ssh laptop    # alias: apex@192.168.0.107:2222 (key auth via ~/.ssh/id_ed25519)
+ssh laptop    # alias: apex@192.168.0.104:2222 (key auth via ~/.ssh/id_ed25519)
 # Password (if needed): abnudc1337
 ```
 
 ### 2. Sync changed files from Pi to laptop
 ```bash
-scp -P 2222 <local-file> apex@192.168.0.107:~/ApexPocket-Android/<path>
+scp -P 2222 <local-file> apex@192.168.0.104:~/ApexPocket-Android/<path>
 ```
 
 ### 3. Build debug APK
