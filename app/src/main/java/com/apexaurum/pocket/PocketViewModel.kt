@@ -544,6 +544,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 val convId = _conversationIds.value[currentSoul.selectedAgentId]
+                val now = java.time.LocalDateTime.now()
                 val request = ChatRequest(
                     message = text,
                     agent = currentSoul.selectedAgentId,
@@ -551,6 +552,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     state = currentSoul.state.name,
                     conversationId = convId,
                     imageBase64 = imageBase64,
+                    localTime = now.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+                    timezone = java.time.ZoneId.systemDefault().id,
                 )
 
                 val client = streamingClient

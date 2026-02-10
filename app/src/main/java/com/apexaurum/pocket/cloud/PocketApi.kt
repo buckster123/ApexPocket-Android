@@ -75,6 +75,8 @@ data class ChatRequest(
     @SerialName("device_id") val deviceId: String? = null,
     @SerialName("conversation_id") val conversationId: String? = null,
     @SerialName("image_base64") val imageBase64: String? = null,
+    @SerialName("local_time") val localTime: String? = null,
+    val timezone: String? = null,
 )
 
 @Serializable
