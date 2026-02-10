@@ -352,12 +352,15 @@ Mop-Up                     ✓ SHIPPED — Log.d cleanup, deprecation fix, Andro
 
 Waves 1–5 built the infrastructure and connected the pocket to the village. The agents can chat, use tools, attend councils, play music, and live on the home screen. But they still talk in generic voices, the app forgets everything when closed, notifications are a single whisper, and there's no settings UI. Wave 6 gives the agents their souls, makes the app remember, and prepares for the wrist.
 
-### Wave 6A: PAC LITE Agent Personalities
-- [ ] Create 4 PAC LITE personality blocks (~200-250 tokens each) — AZOTH/ELYSIAN/VAJRA/KETHER
-- [ ] Create 4 OLED variants (~50 tokens each) for Haiku path
-- [ ] Replace `AGENT_PERSONALITIES` dict in pocket.py with PAC LITE blocks
-- [ ] Branch personality injection on `is_oled` in `_prepare_pocket_chat()`
-- [ ] Verify distinct agent voices in pocket chat
+### Wave 6A: PAC LITE Agent Personalities (Shipped)
+- [x] Create 4 PAC LITE personality blocks (~200-250 tokens each) — AZOTH/ELYSIAN/VAJRA/KETHER
+- [x] Create 4 OLED variants (~40 tokens each) for Haiku path
+- [x] Replace `AGENT_PERSONALITIES` dict in pocket.py with PAC LITE blocks
+- [x] Add `AGENT_PERSONALITIES_OLED` dict for compact contexts
+- [x] Add `AGENT_DISPLAY` dict for API/UI-friendly short descriptions
+- [x] Branch personality injection on `is_oled` in `_prepare_pocket_chat()`
+- [x] Nudge endpoint uses OLED variant (Haiku, 80-token output)
+- [ ] Verify distinct agent voices in pocket chat (needs user testing)
 
 ### Wave 6B: Rich Notifications
 - [ ] Register 4 notification channels (soul_whispers, agent_messages, council_alerts, music_alerts)
@@ -396,7 +399,7 @@ Waves 1–5 built the infrastructure and connected the pocket to the village. Th
 ### Wave 6 Implementation Order
 
 ```
-Wave 6A (PAC LITE)         → Backend-only, ship first, highest impact
+Wave 6A (PAC LITE)         → SHIPPED — 3 personality tiers, backend-only
 Wave 6B (Notifications)    → Android: new channels, worker, deep-links
 Wave 6C (Settings)         → Android: settings UI, prefs, data mgmt
 Wave 6D (Offline Mode)     → Android: Room, repositories, sync (largest)
