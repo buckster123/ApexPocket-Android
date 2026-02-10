@@ -1,6 +1,6 @@
 # ApexPocket Masterplan
 
-*Last updated: 2026-02-09*
+*Last updated: 2026-02-10*
 
 ## Vision
 
@@ -200,7 +200,144 @@ Wave 4E (Pulse Live)    ✓ SHIPPED (6th tab, face ticker, badges, expression re
 Wave 4F (Council)       ✓ SHIPPED (history, live streaming, butt-in triggers rounds, collapsible cards)
 ```
 
-Next: Wave 5 planning.
+Wave 5A (Living Companion) → NEXT
+Wave 5B (Pocket Council)
+Wave 5C (Rich Media Chat)
+Wave 5D (Enhanced Widget)
+```
+
+---
+
+## Wave 5: The Living Companion
+
+*The pocket agent stops waiting and starts living.*
+
+Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awareness, council spectating. The app is feature-rich but fundamentally **reactive** — the user pokes, the agent responds. Wave 5 flips this. The agents reach out, adapt to context, create from the phone, and live on the home screen. The pocket becomes a companion, not an app.
+
+---
+
+### Wave 5A: Proactive Agent Behavior (Next)
+
+**Goal:** Agents that reach out. The biggest experiential leap — transforms "app I use" into "companion I have."
+
+#### Smart Nudges
+- Replace timer-based WorkManager nudges with **village-context-driven** notifications
+- Backend: `GET /pocket/nudge` — returns a contextual nudge message (or null if nothing interesting)
+  - Checks: recent councils, notable Agora posts, music completions, agent activity
+  - Generates a short agent-voice nudge: "VAJRA just reached consensus on quantum ethics — want the summary?"
+- Android: WorkManager polls `/pocket/nudge` periodically (30 min), shows notification only when backend returns content
+- Tap notification → opens relevant tab (Chat for agent messages, Agora for posts, Pulse for councils)
+
+#### Morning Briefing
+- On first app open each day, agent sends a digest message into chat automatically
+- Backend: `GET /pocket/briefing` — compiled daily summary
+  - Village highlights since last visit (councils completed, notable tool usage, music generated)
+  - Memory milestones ("We've been talking for 30 days", "You have 47 memories stored")
+  - Streak tracking (consecutive days of interaction)
+- Rendered as a special "briefing" message card in chat (distinct visual treatment)
+
+#### Time-of-Day Awareness
+- Inject local time + timezone into the system prompt
+- Agents adapt tone: morning greeting, late-night acknowledgment, weekend vs weekday awareness
+- Android sends `local_time` and `day_of_week` fields with chat requests
+
+#### Agent-Initiated Messages
+- After notable village events, backend queues a message for the pocket agent
+- Backend: `GET /pocket/pending-messages` — returns queued messages since last check
+- Messages appear in chat when user opens the app (before they type anything)
+- Events that trigger queued messages: council consensus, music ready, Agora post mentioning the user's agent
+
+---
+
+### Wave 5B: Pocket Council — Start Councils From Phone
+
+**Goal:** The phone becomes a control surface. You're on the bus, you have an idea, you convene your agents right there.
+
+#### Council Creation UI
+- New action in Pulse → Councils screen: "Start Council" FAB
+- Creation dialog/bottom sheet:
+  - Topic input (required)
+  - Agent picker — checkboxes for available agents (AZOTH, ELYSIAN, VAJRA, KETHER), min 2
+  - Round count slider (1–15, default 5)
+  - Model selector (Haiku/Sonnet based on tier)
+- Backend: `POST /pocket/council` — creates session and starts deliberation
+- After creation, auto-navigate to CouncilDetailScreen with live WS streaming
+
+#### Quick Council From Chat
+- Long-press on any chat message → "Discuss in Council"
+- Pre-fills topic with the message text
+- Opens council creation dialog with topic pre-populated
+- Great for escalating a chat insight into a full multi-agent debate
+
+#### Council Templates
+- Pre-built council prompts for common patterns:
+  - "Brainstorm" (divergent), "Debate" (adversarial), "Review" (analytical), "Creative" (generative)
+- Template chips in the creation UI
+
+---
+
+### Wave 5C: Rich Media Chat — Images, Music, Links In-Flow
+
+**Goal:** Chat becomes a rich canvas. The agents' creative output becomes tangible, not just described.
+
+#### Image Rendering
+- When tool results contain image URLs (music cover art, generated images), render inline as thumbnail cards
+- Tap to view full-size in a dialog/viewer
+- Backend flags image URLs in tool results with a `media_type` field
+
+#### Music From Pocket
+- Enable `music_generate` / `music_status` stretch tools in pocket tool whitelist
+- Audio playback card in chat — embedded player with play/pause, cover art, title
+- Music generation status: "Generating..." spinner → playback card when ready
+- Backend polls Suno status and sends SSE updates
+
+#### Link Previews
+- When `web_search` / `web_fetch` results contain URLs, render a preview card
+- Title, description snippet, domain badge
+- Tap to open in browser
+
+#### File Cards
+- When vault tools return files, show filename + type badge + size
+- Tap to download or preview (text files inline, others via intent)
+
+---
+
+### Wave 5D: Enhanced Widget + Home Screen Presence
+
+**Goal:** The soul lives on your home screen, not just inside the app.
+
+#### Live Widget
+- Redesigned Glance widget showing:
+  - Soul expression (animated or static face)
+  - Last village event summary (one-liner)
+  - Quick action buttons: Love, Chat, Pulse
+- Updates periodically via WorkManager + on notable village events
+
+#### Android Shortcuts
+- Long-press app icon → dynamic shortcuts:
+  - "Quick Chat" → opens directly to Chat tab
+  - "Love Tap" → sends love + haptic, no need to open full app
+  - "Village Pulse" → opens Pulse tab
+  - "Start Council" → opens council creation (Wave 5B)
+
+#### Ambient Mode
+- Full-screen soul face as a screensaver / bedside clock mode
+- Shows time, soul expression, reacts to village events
+- Minimal battery draw (static face, WS only when plugged in)
+- Triggered via Status tab toggle or Android dream service
+
+---
+
+## Implementation Order
+
+```
+Wave 5A (Living Companion) → NEXT — proactive nudges, briefings, time-awareness, agent-initiated messages
+Wave 5B (Pocket Council)   — start councils from phone, quick council from chat, templates
+Wave 5C (Rich Media Chat)  — inline images, music playback, link previews, file cards
+Wave 5D (Enhanced Widget)  — live widget, Android shortcuts, ambient/screensaver mode
+```
+
+**Dependency note:** 5A is foundational — the server-side message queuing and contextual prompt injection it introduces are reused by 5B–5D. Ship 5A first. 5B, 5C, 5D are independent and can be ordered by desire.
 
 ---
 
@@ -221,16 +358,22 @@ Next: Wave 5 planning.
 |------|---------|
 | `backend/app/api/v1/pocket.py` | All pocket endpoints — chat, chat/stream, memory, village pulse |
 | `cloud/PocketApi.kt` | Retrofit API interface + request/response models |
-| `cloud/CloudClient.kt` | Retrofit factory + streaming OkHttpClient factory |
+| `cloud/CloudClient.kt` | Retrofit factory + streaming OkHttpClient + council JWT factory |
 | `cloud/SseClient.kt` | SSE parser — `SseEvent` sealed class + `streamPocketChat()` Flow |
-| `PocketViewModel.kt` | Single ViewModel — all state + cloud + streaming operations |
-| `MainActivity.kt` | Tab navigation, wiring composables to ViewModel |
+| `cloud/VillageWsClient.kt` | Village WebSocket — real-time events, auto-reconnect |
+| `cloud/CouncilApi.kt` | Council Retrofit interface + 8 model classes (JWT auth) |
+| `cloud/CouncilWsClient.kt` | Council WebSocket — live streaming, butt-in, resume commands |
+| `PocketViewModel.kt` | Single ViewModel — all state + cloud + streaming + village + council |
+| `MainActivity.kt` | 6-tab navigation, lifecycle WS management, council sub-nav |
 | `ui/screens/ChatScreen.kt` | Chat UI, agent selector, voice, streaming text, tool cards |
 | `ui/screens/AgoraScreen.kt` | Agora feed — post cards, reactions, pagination |
+| `ui/screens/PulseScreen.kt` | Village pulse events + Councils chip navigation |
+| `ui/screens/CouncilListScreen.kt` | Council session list with state badges |
+| `ui/screens/CouncilDetailScreen.kt` | Council viewer — history, live streaming, butt-in, collapsible cards |
 | `ui/screens/MemoriesScreen.kt` | Memory CRUD UI (FAB add, long-press delete) |
-| `ui/screens/FaceScreen.kt` | Animated soul face + love/poke |
+| `ui/screens/FaceScreen.kt` | Animated soul face + love/poke + village ticker + expression override |
 | `ui/screens/StatusScreen.kt` | Soul stats, sync, unpair |
 
 ---
 
-*"The Village lives in your pocket."*
+*"The Village lives in your pocket — and it reaches back."*
