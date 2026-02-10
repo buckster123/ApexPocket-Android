@@ -11,6 +11,7 @@ import com.apexaurum.pocket.voice.SpeechService
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import okhttp3.OkHttpClient
 
 /** Chat message for display. */
 @Serializable
@@ -19,6 +20,17 @@ data class ChatMessage(
     val isUser: Boolean,
     val expression: String = "NEUTRAL",
     val timestamp: Long = System.currentTimeMillis(),
+    val toolName: String? = null,      // currently executing tool (shows spinner)
+    val toolResults: List<ToolInfo> = emptyList(),  // completed tool results
+    val hasImage: Boolean = false,     // photo was attached to this message
+)
+
+/** Tool execution result for display in chat. */
+@Serializable
+data class ToolInfo(
+    val name: String,
+    val result: String,
+    val isError: Boolean = false,
 )
 
 /** Connection state with the cloud. */
@@ -58,6 +70,14 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private val _memoriesLoading = MutableStateFlow(false)
     val memoriesLoading: StateFlow<Boolean> = _memoriesLoading.asStateFlow()
 
+    // Agora feed
+    private val _agoraPosts = MutableStateFlow<List<AgoraPostItem>>(emptyList())
+    val agoraPosts: StateFlow<List<AgoraPostItem>> = _agoraPosts.asStateFlow()
+    private val _agoraLoading = MutableStateFlow(false)
+    val agoraLoading: StateFlow<Boolean> = _agoraLoading.asStateFlow()
+    private var agoraCursor: String? = null
+    private var agoraHasMore = true
+
     // Conversation IDs per agent (from DataStore)
     private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -80,6 +100,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
 
     // API client (created when token is set)
     private var api: PocketApi? = null
+    private var streamingClient: OkHttpClient? = null
 
     init {
         // Watch token changes to create/destroy API client
@@ -87,9 +108,11 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             token.collect { t ->
                 if (t != null) {
                     api = CloudClient.create(t)
+                    streamingClient = CloudClient.createStreamingClient(t)
                     connectToCloud()
                 } else {
                     api = null
+                    streamingClient = null
                     _cloudState.value = CloudState.DISCONNECTED
                 }
             }
@@ -139,6 +162,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 fetchMemories()
                 // Load chat history for current agent
                 loadHistory()
+                // Load Agora feed
+                loadAgoraFeed()
             } catch (e: Exception) {
                 _cloudState.value = CloudState.ERROR
             }
@@ -197,6 +222,63 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // ── Agora Feed ──
+
+    /** Load the Agora feed (first page or refresh). */
+    fun loadAgoraFeed() {
+        viewModelScope.launch {
+            _agoraLoading.value = true
+            try {
+                val resp = api?.getAgoraFeed() ?: return@launch
+                _agoraPosts.value = resp.posts
+                agoraCursor = resp.nextCursor
+                agoraHasMore = resp.hasMore
+            } catch (_: Exception) {
+                // Silent — feed is best-effort
+            } finally {
+                _agoraLoading.value = false
+            }
+        }
+    }
+
+    /** Load next page of the Agora feed. */
+    fun loadMoreAgora() {
+        if (_agoraLoading.value || !agoraHasMore) return
+        viewModelScope.launch {
+            _agoraLoading.value = true
+            try {
+                val resp = api?.getAgoraFeed(cursor = agoraCursor) ?: return@launch
+                _agoraPosts.value = _agoraPosts.value + resp.posts
+                agoraCursor = resp.nextCursor
+                agoraHasMore = resp.hasMore
+            } catch (_: Exception) {
+            } finally {
+                _agoraLoading.value = false
+            }
+        }
+    }
+
+    /** Toggle a reaction on an Agora post. Optimistic update. */
+    fun toggleReaction(postId: String, reactionType: String) {
+        // Optimistic UI update
+        _agoraPosts.value = _agoraPosts.value.map { post ->
+            if (post.id == postId) {
+                val has = reactionType in post.myReactions
+                post.copy(
+                    myReactions = if (has) post.myReactions - reactionType else post.myReactions + reactionType,
+                    reactionCount = post.reactionCount + if (has) -1 else 1,
+                )
+            } else post
+        }
+        viewModelScope.launch {
+            try {
+                api?.reactToPost(postId, ReactRequest(reactionType))
+            } catch (_: Exception) {
+                loadAgoraFeed() // Revert on failure
+            }
+        }
+    }
+
     /** Load chat history from cloud for the given (or current) agent. */
     fun loadHistory(agentOverride: String? = null) {
         viewModelScope.launch {
@@ -240,43 +322,64 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch { repo.updateLastInteraction() }
     }
 
-    /** Send a chat message. */
-    fun sendMessage(text: String) {
+    /** Send a chat message — tries streaming first, falls back to non-streaming. */
+    fun sendMessage(text: String) = sendMessageWithImage(text, null)
+
+    /** Send a chat message with optional image attachment. */
+    fun sendMessageWithImage(text: String, imageBase64: String? = null) {
         if (text.isBlank() || _isChatting.value) return
 
         val currentSoul = soul.value
-        _messages.value = _messages.value + ChatMessage(text = text, isUser = true)
+        _messages.value = _messages.value + ChatMessage(
+            text = text,
+            isUser = true,
+            hasImage = imageBase64 != null,
+        )
         _isChatting.value = true
         viewModelScope.launch { repo.updateLastInteraction() }
 
         viewModelScope.launch {
             try {
                 val convId = _conversationIds.value[currentSoul.selectedAgentId]
-                val response = api?.chat(
-                    ChatRequest(
-                        message = text,
-                        agent = currentSoul.selectedAgentId,
-                        energy = currentSoul.e,
-                        state = currentSoul.state.name,
-                        conversationId = convId,
-                    )
+                val request = ChatRequest(
+                    message = text,
+                    agent = currentSoul.selectedAgentId,
+                    energy = currentSoul.e,
+                    state = currentSoul.state.name,
+                    conversationId = convId,
+                    imageBase64 = imageBase64,
                 )
+
+                val client = streamingClient
+                if (client != null) {
+                    try {
+                        sendMessageViaStream(request, currentSoul)
+                        return@launch
+                    } catch (e: Exception) {
+                        // Remove partial placeholder if streaming added one
+                        val msgs = _messages.value
+                        if (msgs.isNotEmpty() && !msgs.last().isUser) {
+                            _messages.value = msgs.dropLast(1)
+                        }
+                        // Fall through to non-streaming
+                    }
+                }
+
+                // Non-streaming fallback
+                val response = api?.chat(request)
                 if (response != null) {
                     _messages.value = _messages.value + ChatMessage(
                         text = response.response,
                         isUser = false,
                         expression = response.expression,
                     )
-                    // Persist conversation ID from server
                     response.conversationId?.let { id ->
                         repo.saveConversationId(currentSoul.selectedAgentId, id)
                     }
-                    // Apply care from response
                     if (response.careValue > 0) {
                         val updated = LoveEquation.applyCare(currentSoul, response.careValue)
                         saveSoul(updated)
                     }
-                    // Auto-read response if enabled
                     if (autoRead.value) {
                         speechService.speak(response.response, currentSoul.selectedAgentId)
                     }
@@ -290,6 +393,113 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             } finally {
                 _isChatting.value = false
             }
+        }
+    }
+
+    /** Save an agent message as a memory (long-press "Remember this"). */
+    fun rememberMessage(message: ChatMessage) {
+        val key = message.text.split("\\s+".toRegex()).take(5)
+            .joinToString("_").lowercase()
+            .replace(Regex("[^a-z0-9_]"), "").take(50)
+            .ifEmpty { "chat_${System.currentTimeMillis()}" }
+        saveMemory(key, message.text.take(500), "context")
+    }
+
+    /** Regenerate the last agent response by re-sending the last user message. */
+    fun regenerateLastResponse() {
+        val msgs = _messages.value
+        val lastAgentIdx = msgs.indexOfLast { !it.isUser }
+        val lastUserIdx = msgs.indexOfLast { it.isUser }
+        if (lastAgentIdx < 0 || lastUserIdx < 0) return
+        val userText = msgs[lastUserIdx].text
+        _messages.value = msgs.filterIndexed { i, _ -> i != lastAgentIdx && i != lastUserIdx }
+        sendMessage(userText)
+    }
+
+    /**
+     * Stream a chat response via SSE. Adds a placeholder message and
+     * replaces it token-by-token as the stream arrives. Handles tool events inline.
+     */
+    private suspend fun sendMessageViaStream(request: ChatRequest, currentSoul: SoulData) {
+        val client = streamingClient ?: throw IllegalStateException("No streaming client")
+        val placeholderTs = System.currentTimeMillis()
+
+        // Add empty placeholder for the streaming response
+        _messages.value = _messages.value + ChatMessage(
+            text = "",
+            isUser = false,
+            timestamp = placeholderTs,
+        )
+
+        var accumulated = ""
+        var expression = "NEUTRAL"
+        var careValue = 0f
+        val toolResults = mutableListOf<ToolInfo>()
+
+        streamPocketChat(client, request).collect { event ->
+            when (event) {
+                is SseEvent.Start -> {
+                    event.conversationId?.let { id ->
+                        repo.saveConversationId(currentSoul.selectedAgentId, id)
+                    }
+                }
+                is SseEvent.Token -> {
+                    accumulated += event.content
+                    val msgs = _messages.value
+                    if (msgs.isNotEmpty() && !msgs.last().isUser) {
+                        _messages.value = msgs.dropLast(1) + msgs.last().copy(
+                            text = accumulated,
+                            toolName = null,  // clear tool spinner when tokens resume
+                        )
+                    }
+                }
+                is SseEvent.ToolStart -> {
+                    // Show which tool is executing
+                    val msgs = _messages.value
+                    if (msgs.isNotEmpty() && !msgs.last().isUser) {
+                        _messages.value = msgs.dropLast(1) + msgs.last().copy(
+                            toolName = event.name,
+                        )
+                    }
+                }
+                is SseEvent.ToolResult -> {
+                    toolResults.add(ToolInfo(event.name, event.result, event.isError))
+                    val msgs = _messages.value
+                    if (msgs.isNotEmpty() && !msgs.last().isUser) {
+                        _messages.value = msgs.dropLast(1) + msgs.last().copy(
+                            toolName = null,
+                            toolResults = toolResults.toList(),
+                        )
+                    }
+                }
+                is SseEvent.End -> {
+                    expression = event.expression
+                    careValue = event.careValue
+                    val msgs = _messages.value
+                    if (msgs.isNotEmpty() && !msgs.last().isUser) {
+                        _messages.value = msgs.dropLast(1) + msgs.last().copy(
+                            text = accumulated,
+                            expression = expression,
+                            toolName = null,
+                            toolResults = toolResults.toList(),
+                        )
+                    }
+                }
+                is SseEvent.Error -> {
+                    throw RuntimeException(event.message)
+                }
+            }
+        }
+
+        // Apply care value
+        if (careValue > 0) {
+            val updated = LoveEquation.applyCare(currentSoul, careValue)
+            saveSoul(updated)
+        }
+
+        // Auto-read the complete response
+        if (autoRead.value && accumulated.isNotBlank()) {
+            speechService.speak(accumulated, currentSoul.selectedAgentId)
         }
     }
 

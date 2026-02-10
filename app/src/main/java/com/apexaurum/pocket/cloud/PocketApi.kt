@@ -42,6 +42,21 @@ interface PocketApi {
         @Query("agent") agent: String,
         @Query("limit") limit: Int = 50,
     ): HistoryResponse
+
+    // ─── Agora Feed ──────────────────────────────────────────────────
+
+    @GET("api/v1/pocket/agora")
+    suspend fun getAgoraFeed(
+        @Query("limit") limit: Int = 20,
+        @Query("cursor") cursor: String? = null,
+        @Query("content_type") contentType: String? = null,
+    ): AgoraFeedResponse
+
+    @POST("api/v1/pocket/agora/{postId}/react")
+    suspend fun reactToPost(
+        @Path("postId") postId: String,
+        @Body request: ReactRequest,
+    ): ReactResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -54,6 +69,7 @@ data class ChatRequest(
     val state: String = "WARM",
     @SerialName("device_id") val deviceId: String? = null,
     @SerialName("conversation_id") val conversationId: String? = null,
+    @SerialName("image_base64") val imageBase64: String? = null,
 )
 
 @Serializable
@@ -196,4 +212,39 @@ data class SaveMemoryResponse(
 data class DeleteMemoryResponse(
     val message: String = "",
     val id: String = "",
+)
+
+// ─── Agora Models ───────────────────────────────────────────────
+
+@Serializable
+data class AgoraFeedResponse(
+    val posts: List<AgoraPostItem> = emptyList(),
+    @SerialName("next_cursor") val nextCursor: String? = null,
+    @SerialName("has_more") val hasMore: Boolean = false,
+)
+
+@Serializable
+data class AgoraPostItem(
+    val id: String,
+    @SerialName("content_type") val contentType: String = "user_post",
+    val title: String? = null,
+    val body: String = "",
+    @SerialName("agent_id") val agentId: String? = null,
+    @SerialName("is_pinned") val isPinned: Boolean = false,
+    @SerialName("reaction_count") val reactionCount: Int = 0,
+    @SerialName("comment_count") val commentCount: Int = 0,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("my_reactions") val myReactions: List<String> = emptyList(),
+)
+
+@Serializable
+data class ReactRequest(
+    @SerialName("reaction_type") val reactionType: String,
+)
+
+@Serializable
+data class ReactResponse(
+    val action: String = "",
+    @SerialName("reaction_type") val reactionType: String = "",
+    @SerialName("reaction_count") val reactionCount: Int = 0,
 )

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChatBubbleOutline
 import androidx.compose.material.icons.filled.Face
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -62,6 +63,8 @@ class MainActivity : ComponentActivity() {
                 val pendingVoiceText by vm.pendingVoiceText.collectAsStateWithLifecycle()
                 val memories by vm.memories.collectAsStateWithLifecycle()
                 val memoriesLoading by vm.memoriesLoading.collectAsStateWithLifecycle()
+                val agoraPosts by vm.agoraPosts.collectAsStateWithLifecycle()
+                val agoraLoading by vm.agoraLoading.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
 
                 // Request notification permission on Android 13+
@@ -94,6 +97,8 @@ class MainActivity : ComponentActivity() {
                         agents = agents,
                         memories = memories,
                         memoriesLoading = memoriesLoading,
+                        agoraPosts = agoraPosts,
+                        agoraLoading = agoraLoading,
                         isListening = isListening,
                         isSpeaking = isSpeaking,
                         autoRead = autoRead,
@@ -132,6 +137,8 @@ private fun MainScreen(
     agents: List<com.apexaurum.pocket.cloud.AgentInfo>,
     memories: List<com.apexaurum.pocket.cloud.AgentMemoryItem>,
     memoriesLoading: Boolean,
+    agoraPosts: List<com.apexaurum.pocket.cloud.AgoraPostItem>,
+    agoraLoading: Boolean,
     isListening: Boolean,
     isSpeaking: Boolean,
     autoRead: Boolean,
@@ -143,6 +150,7 @@ private fun MainScreen(
     val tabs = listOf(
         TabItem("Face", Icons.Default.Face),
         TabItem("Chat", Icons.Default.ChatBubbleOutline),
+        TabItem("Agora", Icons.Default.Forum),
         TabItem("Memories", Icons.Default.AutoAwesome),
         TabItem("Status", Icons.Default.Info),
     )
@@ -212,15 +220,25 @@ private fun MainScreen(
                     onStopSpeaking = { vm.stopSpeaking() },
                     onClearPendingVoice = { vm.clearPendingVoiceText() },
                     micAvailable = micAvailable,
+                    onRemember = { vm.rememberMessage(it) },
+                    onRegenerate = { vm.regenerateLastResponse() },
+                    onSendWithImage = { text, img -> vm.sendMessageWithImage(text, img) },
                 )
-                2 -> MemoriesScreen(
+                2 -> AgoraScreen(
+                    posts = agoraPosts,
+                    isLoading = agoraLoading,
+                    onRefresh = { vm.loadAgoraFeed() },
+                    onLoadMore = { vm.loadMoreAgora() },
+                    onReact = { postId, type -> vm.toggleReaction(postId, type) },
+                )
+                3 -> MemoriesScreen(
                     memories = memories,
                     isLoading = memoriesLoading,
                     onRefresh = { vm.fetchMemories() },
                     onSave = { k, v, t -> vm.saveMemory(k, v, t) },
                     onDelete = { vm.deleteMemory(it) },
                 )
-                3 -> StatusScreen(
+                4 -> StatusScreen(
                     soul = soul,
                     cloudState = cloudState,
                     onSync = {

@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  */
 object CloudClient {
 
-    private val json = Json {
+    val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
         encodeDefaults = true
@@ -50,4 +50,19 @@ object CloudClient {
             .build()
             .create(PocketApi::class.java)
     }
+
+    /** OkHttpClient for SSE streaming — 120s read timeout, no body logging. */
+    fun createStreamingClient(token: String): OkHttpClient =
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(120, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .addHeader("Authorization", "Bearer $token")
+                    .addHeader("User-Agent", "ApexPocket-Android/${BuildConfig.VERSION_NAME}")
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
 }
