@@ -53,7 +53,6 @@ class MusicPlayerManager(private val context: Context) {
         _currentTrack.value = track
 
         val url = localUri ?: buildAudioUrl(track.id, jwt)
-        Log.d(TAG, "playTrack: id=${track.id}, title=${track.title}, url=${url.take(120)}...")
 
         val mediaItem = MediaItem.fromUri(url)
         p.stop()
@@ -104,7 +103,6 @@ class MusicPlayerManager(private val context: Context) {
 
     @OptIn(UnstableApi::class)
     private fun createPlayer(): ExoPlayer {
-        Log.d(TAG, "createPlayer: building ExoPlayer")
         val audioAttributes = AudioAttributes.Builder()
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .setUsage(C.USAGE_MEDIA)
@@ -117,20 +115,11 @@ class MusicPlayerManager(private val context: Context) {
 
         p.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                Log.d(TAG, "onIsPlayingChanged: $isPlaying")
                 updateState()
                 if (isPlaying) startPositionPolling() else positionJob?.cancel()
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
-                val stateName = when (playbackState) {
-                    Player.STATE_IDLE -> "IDLE"
-                    Player.STATE_BUFFERING -> "BUFFERING"
-                    Player.STATE_READY -> "READY"
-                    Player.STATE_ENDED -> "ENDED"
-                    else -> "UNKNOWN($playbackState)"
-                }
-                Log.d(TAG, "onPlaybackStateChanged: $stateName")
                 updateState()
                 if (playbackState == Player.STATE_ENDED) {
                     _playerState.value = _playerState.value.copy(isPlaying = false)

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="chat"
+        android:enabled="true"
+        android:icon="@drawable/ic_widget_chat"
+        android:shortcutShortLabel="@string/shortcut_chat"
+        android:shortcutLongLabel="@string/shortcut_chat_long">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="com.apexaurum.pocket"
+            android:targetClass="com.apexaurum.pocket.MainActivity">
+            <extra android:name="tab" android:value="chat" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="music"
+        android:enabled="true"
+        android:icon="@drawable/ic_widget_music"
+        android:shortcutShortLabel="@string/shortcut_music"
+        android:shortcutLongLabel="@string/shortcut_music_long">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="com.apexaurum.pocket"
+            android:targetClass="com.apexaurum.pocket.MainActivity">
+            <extra android:name="tab" android:value="music" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="pulse"
+        android:enabled="true"
+        android:icon="@drawable/ic_widget_pulse"
+        android:shortcutShortLabel="@string/shortcut_pulse"
+        android:shortcutLongLabel="@string/shortcut_pulse_long">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="com.apexaurum.pocket"
+            android:targetClass="com.apexaurum.pocket.MainActivity">
+            <extra android:name="tab" android:value="pulse" />
+        </intent>
+    </shortcut>
+    <shortcut
+        android:shortcutId="councils"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_council"
+        android:shortcutShortLabel="@string/shortcut_councils"
+        android:shortcutLongLabel="@string/shortcut_councils_long">
+        <intent
+            android:action="android.intent.action.MAIN"
+            android:targetPackage="com.apexaurum.pocket"
+            android:targetClass="com.apexaurum.pocket.MainActivity">
+            <extra android:name="tab" android:value="council_list" />
+        </intent>
+    </shortcut>
+</shortcuts>

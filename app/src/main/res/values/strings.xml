@@ -2,4 +2,12 @@
 <resources>
     <string name="app_name">ApexPocket</string>
     <string name="widget_description">Soul status — shows energy, state, and active agent</string>
+    <string name="shortcut_chat">Chat</string>
+    <string name="shortcut_chat_long">Chat with your agent</string>
+    <string name="shortcut_music">Music</string>
+    <string name="shortcut_music_long">Music library</string>
+    <string name="shortcut_pulse">Pulse</string>
+    <string name="shortcut_pulse_long">Village activity</string>
+    <string name="shortcut_councils">Councils</string>
+    <string name="shortcut_councils_long">Council sessions</string>
 </resources>

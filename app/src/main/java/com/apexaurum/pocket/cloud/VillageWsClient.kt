@@ -80,8 +80,6 @@ class VillageWsClient {
             .replace("http://", "ws://")
             .trimEnd('/')
         val wsUrl = "$baseUrl/ws/village?token=$token"
-        Log.d(TAG, "Connecting to village WS")
-
         val request = Request.Builder().url(wsUrl).build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {

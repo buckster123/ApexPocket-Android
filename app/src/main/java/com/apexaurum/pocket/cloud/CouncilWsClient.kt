@@ -74,8 +74,6 @@ class CouncilWsClient {
             .replace("http://", "ws://")
             .trimEnd('/')
         val wsUrl = "$baseUrl/ws/council/$sessionId?token=$jwtToken"
-        Log.d(TAG, "Connecting to council WS: $sessionId")
-
         val request = Request.Builder().url(wsUrl).build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {

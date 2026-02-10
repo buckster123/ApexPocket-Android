@@ -29,7 +29,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -240,7 +240,7 @@ private fun MainScreen(
             when (initialTab) {
                 "chat" -> 1
                 "agora" -> 2
-                "pulse", "music" -> 3
+                "pulse", "music", "council_list" -> 3
                 "memories" -> 4
                 "status" -> 5
                 else -> 0
@@ -248,12 +248,19 @@ private fun MainScreen(
         )
     }
     var pulseNav by remember {
-        mutableStateOf(if (initialTab == "music") "music" else "events")
+        mutableStateOf(
+            when (initialTab) {
+                "music" -> "music"
+                "council_list" -> "council_list"
+                else -> "events"
+            }
+        )
     }
 
     // Load music library if deep-linking to music tab
     LaunchedEffect(initialTab) {
         if (initialTab == "music") vm.loadMusicLibrary()
+        if (initialTab == "council_list") vm.fetchCouncilSessions()
     }
     var selectedCouncilId by remember { mutableStateOf<String?>(null) }
 

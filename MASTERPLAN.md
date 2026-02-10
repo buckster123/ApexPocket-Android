@@ -44,7 +44,7 @@ Transform pocket agents from isolated chat companions into living members of the
 - [x] Android: AgentMemoryItem data class with full CRUD
 - [x] Android: MemoriesScreen overhaul — FAB add dialog (type chips, key/value), long-press delete
 - [x] Android: fetchMemories() filters by current agent, refreshes on agent switch
-- [ ] **Deferred:** Long-press chat message -> "Remember this" action (Wave 4 candidate)
+- [x] Long-press chat message -> "Remember this" action (shipped in Wave 4D)
 
 ---
 
@@ -288,9 +288,11 @@ Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awar
 - [x] DataStore bridge: ViewModel writes music/village/expression state for widget consumption
 - [x] 15 vector drawable assets (8 faces, 6 action icons, 1 background)
 
-#### Deferred to Future Wave
-- [ ] Android Shortcuts (long-press app icon → dynamic shortcuts)
-- [ ] Ambient Mode (screensaver / bedside clock)
+#### Mop-Up (Shipped)
+- [x] Android Shortcuts — static shortcuts (Chat, Music, Pulse, Councils) via `res/xml/shortcuts.xml`
+- [x] Ambient Mode — DreamService screensaver (soul face + state + time, DataStore-driven)
+- [x] Debug Log.d cleanup — removed 14 debug log calls, kept operational logs
+- [x] Deprecation fix — `LocalLifecycleOwner` import updated
 
 ---
 
@@ -302,6 +304,7 @@ Wave 5B (Pocket Council)   ✓ SHIPPED — creation UI, quick-council-from-chat,
 Wave 5C (Rich Media Chat)  ✓ SHIPPED — link cards, audio cards, file cards, media extraction pipeline
 Wave 5D (Dashboard Widget)  ✓ SHIPPED — 3-tier responsive widget, soul faces, music controls, village ticker, quick actions
 Wave 5E (Music in Pocket)  ✓ SHIPPED — library screen, ExoPlayer playback, mini-player, downloads, inline chat play
+Mop-Up                     ✓ SHIPPED — Log.d cleanup, deprecation fix, Android shortcuts, ambient mode DreamService
 ```
 
 ---
@@ -338,6 +341,8 @@ Wave 5E (Music in Pocket)  ✓ SHIPPED — library screen, ExoPlayer playback, m
 | `ui/screens/MemoriesScreen.kt` | Memory CRUD UI (FAB add, long-press delete) |
 | `ui/screens/FaceScreen.kt` | Animated soul face + love/poke + village ticker + expression override |
 | `ui/screens/StatusScreen.kt` | Soul stats, sync, unpair |
+| `dream/SoulDreamService.kt` | Ambient mode — DreamService screensaver, reads DataStore |
+| `res/xml/shortcuts.xml` | Static launcher shortcuts (Chat, Music, Pulse, Councils) |
 
 ---
 

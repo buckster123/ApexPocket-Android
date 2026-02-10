@@ -699,20 +699,11 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     fun playMusicTrack(track: MusicTrack) {
         viewModelScope.launch {
             try {
-                android.util.Log.d("MusicVM", "playMusicTrack: ${track.id} / ${track.title}")
-                val jwt = getMusicJwt()
-                if (jwt == null) {
-                    android.util.Log.e("MusicVM", "playMusicTrack: JWT is null, aborting")
-                    return@launch
-                }
-                // Prefer local file if downloaded
+                val jwt = getMusicJwt() ?: return@launch
                 val localUri = musicDownloader.getLocalUri(track.id)
-                android.util.Log.d("MusicVM", "playMusicTrack: localUri=$localUri, jwt=${jwt.take(20)}...")
                 musicPlayer.playTrack(track, jwt, localUri)
                 markTrackPlayed(track.id)
-            } catch (e: Exception) {
-                android.util.Log.e("MusicVM", "playMusicTrack failed", e)
-            }
+            } catch (_: Exception) {}
         }
     }
 
@@ -720,13 +711,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     fun playAudioFromChat(title: String, audioUrl: String, duration: Float, taskId: String = "") {
         viewModelScope.launch {
             try {
-                android.util.Log.d("MusicVM", "playAudioFromChat: $title, taskId=$taskId, url=${audioUrl.take(120)}")
-                val jwt = getMusicJwt()
-                if (jwt == null) {
-                    android.util.Log.e("MusicVM", "playAudioFromChat: JWT is null, aborting")
-                    return@launch
-                }
-                // Use real track ID if available, otherwise generate a stub
+                val jwt = getMusicJwt() ?: return@launch
                 val trackId = taskId.ifBlank { "chat_${System.currentTimeMillis()}" }
                 val stub = MusicTrack(
                     id = trackId,
@@ -736,14 +721,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     status = "completed",
                 )
                 // Only use audioUrl directly if it's a proper HTTP(S) URL (Suno CDN).
-                // Server-side file paths (e.g. "2096fb54-.../music/file.mp3") must go through
-                // the backend /file endpoint which serves local files or redirects to CDN.
+                // Server-side file paths must go through the backend /file endpoint.
                 val directUrl = if (audioUrl.startsWith("http://") || audioUrl.startsWith("https://")) audioUrl else null
-                android.util.Log.d("MusicVM", "playAudioFromChat: directUrl=${directUrl?.take(80) ?: "null -> backend /file endpoint for trackId=$trackId"}")
                 musicPlayer.playTrack(stub, jwt, directUrl)
-            } catch (e: Exception) {
-                android.util.Log.e("MusicVM", "playAudioFromChat failed", e)
-            }
+            } catch (_: Exception) {}
         }
     }
 

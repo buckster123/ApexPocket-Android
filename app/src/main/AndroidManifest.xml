@@ -24,6 +24,9 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
 
         <receiver
@@ -44,6 +47,20 @@
                 <action android:name="com.apexaurum.pocket.TOGGLE_PLAY" />
             </intent-filter>
         </receiver>
+
+        <service
+            android:name=".dream.SoulDreamService"
+            android:exported="true"
+            android:label="ApexPocket Soul"
+            android:permission="android.permission.BIND_DREAM_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.dreams.DreamService" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.dream"
+                android:resource="@xml/dream_info" />
+        </service>
     </application>
 
 </manifest>
