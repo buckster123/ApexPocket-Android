@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.work.*
 import com.apexaurum.pocket.widget.NudgeWorker
+import com.apexaurum.pocket.widget.WidgetUpdateWorker
 import java.util.concurrent.TimeUnit
 
 class ApexPocketApp : Application() {
@@ -37,6 +38,21 @@ class ApexPocketApp : Application() {
             "soul_nudge",
             ExistingPeriodicWorkPolicy.KEEP,
             nudgeRequest,
+        )
+
+        // Schedule periodic widget update (every 30 min — fetches village pulse)
+        val widgetRequest = PeriodicWorkRequestBuilder<WidgetUpdateWorker>(
+            30, TimeUnit.MINUTES,
+        ).setConstraints(
+            Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+        ).build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "widget_update",
+            ExistingPeriodicWorkPolicy.KEEP,
+            widgetRequest,
         )
     }
 }

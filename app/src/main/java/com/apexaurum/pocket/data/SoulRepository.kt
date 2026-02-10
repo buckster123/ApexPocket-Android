@@ -40,6 +40,14 @@ class SoulRepository(private val context: Context) {
         val LAST_NUDGE_TIER = intPreferencesKey("last_nudge_tier")
         val CONVERSATION_IDS = stringPreferencesKey("conversation_ids")
         val LAST_BRIEFING_DATE = stringPreferencesKey("last_briefing_date")
+
+        // Widget state keys (written by ViewModel, read by SoulWidget)
+        val WIDGET_EXPRESSION = stringPreferencesKey("widget_expression")
+        val WIDGET_MUSIC_TITLE = stringPreferencesKey("widget_music_title")
+        val WIDGET_MUSIC_PLAYING = booleanPreferencesKey("widget_music_playing")
+        val WIDGET_VILLAGE_TICKER = stringPreferencesKey("widget_village_ticker")
+        val WIDGET_VILLAGE_AGENT = stringPreferencesKey("widget_village_agent")
+        val WIDGET_PULSE_JSON = stringPreferencesKey("widget_pulse_json")
     }
 
     /** Observe soul state as a Flow (reactive). */
@@ -162,6 +170,38 @@ class SoulRepository(private val context: Context) {
             Json.parseToJsonElement(raw).jsonObject.mapValues { it.value.jsonPrimitive.content }
         } catch (_: Exception) {
             emptyMap()
+        }
+    }
+
+    // ── Widget State Writers ──
+
+    /** Write music player state for widget consumption. */
+    suspend fun saveWidgetMusicState(title: String?, isPlaying: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.WIDGET_MUSIC_TITLE] = title ?: ""
+            prefs[Keys.WIDGET_MUSIC_PLAYING] = isPlaying
+        }
+    }
+
+    /** Write current expression for widget face drawable. */
+    suspend fun saveWidgetExpression(expression: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.WIDGET_EXPRESSION] = expression
+        }
+    }
+
+    /** Write latest village ticker text + agent for widget display. */
+    suspend fun saveWidgetVillageTicker(text: String, agentId: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.WIDGET_VILLAGE_TICKER] = text
+            prefs[Keys.WIDGET_VILLAGE_AGENT] = agentId
+        }
+    }
+
+    /** Cache village pulse JSON for background worker. */
+    suspend fun saveWidgetPulseJson(json: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.WIDGET_PULSE_JSON] = json
         }
     }
 

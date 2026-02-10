@@ -2,6 +2,7 @@ package com.apexaurum.pocket
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -42,10 +43,12 @@ import com.apexaurum.pocket.ui.theme.*
 class MainActivity : ComponentActivity() {
 
     private var vibrator: Vibrator? = null
+    private var deepLinkTab: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        deepLinkTab = intent?.getStringExtra("tab")
 
         // Get vibrator service
         vibrator = if (android.os.Build.VERSION.SDK_INT >= 31) {
@@ -118,8 +121,13 @@ class MainActivity : ComponentActivity() {
                     )
                 } else {
                     // Paired — main app
+                    // Consume deep-link tab from widget
+                    val initialTab = deepLinkTab
+                    deepLinkTab = null
+
                     MainScreen(
                         vm = vm,
+                        initialTab = initialTab,
                         soul = soul,
                         messages = messages,
                         isChatting = isChatting,
@@ -163,6 +171,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        deepLinkTab = intent.getStringExtra("tab")
+    }
+
     private fun vibrate(pattern: VibratePattern) {
         val v = vibrator ?: return
         val effect = when (pattern) {
@@ -182,6 +196,7 @@ private data class TabItem(val title: String, val icon: ImageVector)
 @Composable
 private fun MainScreen(
     vm: PocketViewModel,
+    initialTab: String? = null,
     soul: com.apexaurum.pocket.soul.SoulData,
     messages: List<ChatMessage>,
     isChatting: Boolean,
@@ -220,8 +235,26 @@ private fun MainScreen(
     micAvailable: Boolean,
     onVibrate: (VibratePattern) -> Unit,
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var pulseNav by remember { mutableStateOf("events") }
+    var selectedTab by remember {
+        mutableIntStateOf(
+            when (initialTab) {
+                "chat" -> 1
+                "agora" -> 2
+                "pulse", "music" -> 3
+                "memories" -> 4
+                "status" -> 5
+                else -> 0
+            }
+        )
+    }
+    var pulseNav by remember {
+        mutableStateOf(if (initialTab == "music") "music" else "events")
+    }
+
+    // Load music library if deep-linking to music tab
+    LaunchedEffect(initialTab) {
+        if (initialTab == "music") vm.loadMusicLibrary()
+    }
     var selectedCouncilId by remember { mutableStateOf<String?>(null) }
 
     // Reset pulse sub-nav when switching away from Pulse tab

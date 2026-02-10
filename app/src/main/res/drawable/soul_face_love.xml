@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Face circle -->
+    <path
+        android:pathData="M24,4A20,20 0,1 1,24,44A20,20 0,1 1,24,4Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"/>
+    <!-- Left heart eye (two overlapping arcs forming a heart) -->
+    <path
+        android:pathData="M16,21L14,19A1.8,1.8 0,0 1,16,17A1.8,1.8 0,0 1,18,19Z"
+        android:fillColor="#FFD700"/>
+    <!-- Right heart eye (two overlapping arcs forming a heart) -->
+    <path
+        android:pathData="M32,21L30,19A1.8,1.8 0,0 1,32,17A1.8,1.8 0,0 1,34,19Z"
+        android:fillColor="#FFD700"/>
+    <!-- Mouth smile arc -->
+    <path
+        android:pathData="M18,28Q24,36 30,28"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"/>
+</vector>

@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Face circle -->
+    <path
+        android:pathData="M24,4A20,20 0,1 1,24,44A20,20 0,1 1,24,4Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"/>
+    <!-- Left eye dot (larger) -->
+    <path
+        android:pathData="M16,19A2.2,2.2 0,1 1,16,23.4A2.2,2.2 0,1 1,16,19Z"
+        android:fillColor="#FFD700"/>
+    <!-- Right eye dot (larger) -->
+    <path
+        android:pathData="M32,19A2.2,2.2 0,1 1,32,23.4A2.2,2.2 0,1 1,32,19Z"
+        android:fillColor="#FFD700"/>
+    <!-- Mouth wide smile arc -->
+    <path
+        android:pathData="M16,28Q24,38 32,28"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"/>
+</vector>

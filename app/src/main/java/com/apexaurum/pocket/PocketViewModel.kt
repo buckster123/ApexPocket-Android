@@ -205,6 +205,19 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 _pendingVoiceText.value = text
             }
         }
+
+        // Bridge music player state → DataStore for widget
+        viewModelScope.launch {
+            combine(musicPlayer.playerState, musicPlayer.currentTrack) { state, track ->
+                Pair(state, track)
+            }.collect { (state, track) ->
+                repo.saveWidgetMusicState(title = track?.title, isPlaying = state.isPlaying)
+                try { com.apexaurum.pocket.widget.SoulWidget.refreshAll(getApplication()) } catch (_: Exception) {}
+            }
+        }
+
+        // Register music toggle bridge for widget broadcast
+        com.apexaurum.pocket.widget.MusicToggleBridge.toggleCallback = { musicPlayer.togglePlayPause() }
     }
 
     /** Pair with cloud using a device token. */
@@ -380,6 +393,18 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     _unseenPulseCount.value++
                     _latestTickerEvent.value = event
                     triggerExpressionOverride(event)
+                    // Cache for widget ticker
+                    val tickerText = when (event.type) {
+                        "tool_start" -> "${event.agentId} using ${event.tool ?: "tool"}"
+                        "tool_complete" -> "${event.agentId} finished ${event.tool ?: "tool"}"
+                        "tool_error" -> "${event.agentId} failed ${event.tool ?: "tool"}"
+                        "music_complete" -> "${event.agentId} music ready"
+                        else -> "${event.agentId} ${event.type}"
+                    }
+                    viewModelScope.launch {
+                        repo.saveWidgetVillageTicker(tickerText, event.agentId)
+                        try { com.apexaurum.pocket.widget.SoulWidget.refreshAll(getApplication()) } catch (_: Exception) {}
+                    }
                 }
             } catch (_: Exception) { }
         }
@@ -407,9 +432,13 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         val durationMs = if (event.type == "music_complete") 5000L else 3000L
         expressionOverrideJob?.cancel()
         _expressionOverride.value = expr
+        viewModelScope.launch { repo.saveWidgetExpression(expr.name) }
         expressionOverrideJob = viewModelScope.launch {
             delay(durationMs)
             _expressionOverride.value = null
+            // Revert widget expression to soul's base expression
+            repo.saveWidgetExpression(soul.value.expression.name)
+            try { com.apexaurum.pocket.widget.SoulWidget.refreshAll(getApplication()) } catch (_: Exception) {}
         }
     }
 
@@ -1095,6 +1124,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private fun saveSoul(soul: SoulData) {
         viewModelScope.launch {
             repo.saveSoul(soul)
+            repo.saveWidgetExpression(soul.expression.name)
             try {
                 com.apexaurum.pocket.widget.SoulWidget.refreshAll(getApplication())
             } catch (_: Exception) {
@@ -1109,5 +1139,6 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         disconnectCouncilStream()
         musicPlayer.release()
         speechService.destroy()
+        com.apexaurum.pocket.widget.MusicToggleBridge.toggleCallback = null
     }
 }

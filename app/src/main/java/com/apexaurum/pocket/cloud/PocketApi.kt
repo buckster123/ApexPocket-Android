@@ -48,6 +48,9 @@ interface PocketApi {
     @POST("api/v1/pocket/ws-token")
     suspend fun getWsToken(): WsTokenResponse
 
+    @GET("api/v1/pocket/village-pulse")
+    suspend fun getVillagePulse(): VillagePulseResponse
+
     // ─── Agora Feed ──────────────────────────────────────────────────
 
     @GET("api/v1/pocket/agora")
@@ -330,6 +333,39 @@ data class NudgeItem(
 data class WsTokenResponse(
     val token: String,
     @SerialName("expires_in") val expiresIn: Int = 3600,
+)
+
+// ─── Village Pulse REST Models ─────────────────────────────────
+
+@Serializable
+data class VillagePulseResponse(
+    val councils: List<VillagePulseCouncil> = emptyList(),
+    val music: List<VillagePulseMusic> = emptyList(),
+    val agora: List<VillagePulseAgora> = emptyList(),
+)
+
+@Serializable
+data class VillagePulseCouncil(
+    val topic: String = "",
+    val state: String = "",
+    val round: Int = 0,
+    val age: String = "recently",
+)
+
+@Serializable
+data class VillagePulseMusic(
+    val title: String? = null,
+    val agent: String? = null,
+    val status: String = "",
+    val age: String = "recently",
+)
+
+@Serializable
+data class VillagePulseAgora(
+    @SerialName("content_type") val contentType: String = "",
+    val title: String? = null,
+    val agent: String? = null,
+    val age: String = "recently",
 )
 
 @Serializable

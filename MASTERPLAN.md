@@ -270,29 +270,27 @@ Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awar
 
 ---
 
-### Wave 5D: Enhanced Widget + Home Screen Presence
+### Wave 5D: Enhanced Dashboard Widget (SHIPPED)
 
 **Goal:** The soul lives on your home screen, not just inside the app.
 
-#### Live Widget
-- Redesigned Glance widget showing:
-  - Soul expression (animated or static face)
-  - Last village event summary (one-liner)
-  - Quick action buttons: Love, Chat, Pulse
-- Updates periodically via WorkManager + on notable village events
+#### Live Dashboard Widget ✓
+- [x] 3-tier responsive Glance widget (Compact 2×1 / Medium 3×2 / Large 4×3)
+- [x] 8 vector drawable soul face expressions (neutral, happy, sad, excited, curious, love, thinking, sleeping)
+- [x] Soul state card: expression face + state name + E value + agent (color-coded)
+- [x] Music card: now-playing title + play/pause toggle (Medium + Large layouts)
+- [x] Village ticker: latest event one-liner with agent color (Large layout)
+- [x] Quick action row: Love tap, Chat, Pulse, Music deep-link icons
+- [x] Love tap ActionCallback — updates E + sends care to cloud without opening app
+- [x] Play/pause via broadcast bridge → ExoPlayer toggle in app process
+- [x] Deep-link navigation: widget icons open app to specific tabs (Chat, Pulse, Music)
+- [x] WidgetUpdateWorker: 30-min periodic village-pulse fetch via WorkManager
+- [x] DataStore bridge: ViewModel writes music/village/expression state for widget consumption
+- [x] 15 vector drawable assets (8 faces, 6 action icons, 1 background)
 
-#### Android Shortcuts
-- Long-press app icon → dynamic shortcuts:
-  - "Quick Chat" → opens directly to Chat tab
-  - "Love Tap" → sends love + haptic, no need to open full app
-  - "Village Pulse" → opens Pulse tab
-  - "Start Council" → opens council creation (Wave 5B)
-
-#### Ambient Mode
-- Full-screen soul face as a screensaver / bedside clock mode
-- Shows time, soul expression, reacts to village events
-- Minimal battery draw (static face, WS only when plugged in)
-- Triggered via Status tab toggle or Android dream service
+#### Deferred to Future Wave
+- [ ] Android Shortcuts (long-press app icon → dynamic shortcuts)
+- [ ] Ambient Mode (screensaver / bedside clock)
 
 ---
 
@@ -302,7 +300,7 @@ Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awar
 Wave 5A (Living Companion) ✓ SHIPPED — proactive nudges, briefings, time-awareness, agent-initiated messages
 Wave 5B (Pocket Council)   ✓ SHIPPED — creation UI, quick-council-from-chat, templates, WS fixes
 Wave 5C (Rich Media Chat)  ✓ SHIPPED — link cards, audio cards, file cards, media extraction pipeline
-Wave 5D (Enhanced Widget)  → NEXT — live widget, Android shortcuts, ambient/screensaver mode
+Wave 5D (Dashboard Widget)  ✓ SHIPPED — 3-tier responsive widget, soul faces, music controls, village ticker, quick actions
 Wave 5E (Music in Pocket)  ✓ SHIPPED — library screen, ExoPlayer playback, mini-player, downloads, inline chat play
 ```
 

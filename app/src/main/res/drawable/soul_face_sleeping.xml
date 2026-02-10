@@ -1,0 +1,30 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <!-- Face circle -->
+    <path
+        android:pathData="M24,4A20,20 0,1 1,24,44A20,20 0,1 1,24,4Z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"/>
+    <!-- Left eye closed (horizontal line) -->
+    <path
+        android:pathData="M13.5,21L18.5,21"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"/>
+    <!-- Right eye closed (horizontal line) -->
+    <path
+        android:pathData="M29.5,21L34.5,21"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"/>
+    <!-- Mouth small horizontal line -->
+    <path
+        android:pathData="M21,30L27,30"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFD700"
+        android:strokeWidth="1.5"/>
+</vector>

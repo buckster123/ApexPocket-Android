@@ -36,6 +36,14 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/soul_widget_info" />
         </receiver>
+
+        <receiver
+            android:name=".widget.MusicToggleReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.apexaurum.pocket.TOGGLE_PLAY" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>
