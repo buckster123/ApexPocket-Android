@@ -111,6 +111,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val councilCurrentRound: StateFlow<Int> = _councilCurrentRound.asStateFlow()
     private val _councilButtInSent = MutableStateFlow(false)
     val councilButtInSent: StateFlow<Boolean> = _councilButtInSent.asStateFlow()
+    private val _councilCreating = MutableStateFlow(false)
+    val councilCreating: StateFlow<Boolean> = _councilCreating.asStateFlow()
+    private val _pendingCouncilTopic = MutableStateFlow<String?>(null)
+    val pendingCouncilTopic: StateFlow<String?> = _pendingCouncilTopic.asStateFlow()
 
     // Conversation IDs per agent (from DataStore)
     private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
@@ -431,11 +435,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         councilWs.disconnect()
     }
 
-    /** Submit a butt-in message to the active council, then trigger +1 round. */
+    /** Submit a butt-in message to the active council. Backend auto-triggers +1 round. */
     fun submitButtIn(sessionId: String, message: String) {
         if (councilWs.connected.value) {
             councilWs.sendButtIn(message)
-            councilWs.sendResume(1)
             _councilButtInSent.value = true
         } else {
             viewModelScope.launch {
@@ -455,6 +458,45 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         _councilAgentOutputs.value = emptyMap()
         _councilButtInSent.value = false
     }
+
+    /** Create a new council session and auto-start deliberation. Returns session ID via callback. */
+    fun createCouncil(
+        topic: String,
+        agents: List<String>,
+        maxRounds: Int,
+        model: String,
+        onCreated: (String) -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            _councilCreating.value = true
+            try {
+                val client = ensureCouncilApi()
+                val session = client.createSession(
+                    CreateCouncilRequest(topic, agents, maxRounds, model)
+                )
+                // Load full detail and auto-connect WS
+                _councilDetail.value = client.getSession(session.id)
+                connectCouncilStream(session.id)
+                // Wait for WS to actually connect before sending resume
+                var waited = 0L
+                while (!councilWs.connected.value && waited < 5000) {
+                    delay(100)
+                    waited += 100
+                }
+                if (councilWs.connected.value) {
+                    councilWs.sendResume(maxRounds)
+                }
+                onCreated(session.id)
+            } catch (_: Exception) {
+                // Silent — creation failure handled by UI checking state
+            } finally {
+                _councilCreating.value = false
+            }
+        }
+    }
+
+    fun setPendingCouncilTopic(topic: String) { _pendingCouncilTopic.value = topic }
+    fun clearPendingCouncilTopic() { _pendingCouncilTopic.value = null }
 
     private fun handleCouncilEvent(event: CouncilWsEvent) {
         when (event) {

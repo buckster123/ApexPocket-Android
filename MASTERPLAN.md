@@ -200,8 +200,8 @@ Wave 4E (Pulse Live)    ✓ SHIPPED (6th tab, face ticker, badges, expression re
 Wave 4F (Council)       ✓ SHIPPED (history, live streaming, butt-in triggers rounds, collapsible cards)
 ```
 
-Wave 5A (Living Companion) → NEXT
-Wave 5B (Pocket Council)
+Wave 5A (Living Companion) ✓ SHIPPED (time-awareness, nudges, briefings, pending messages)
+Wave 5B (Pocket Council)   ✓ SHIPPED (creation UI, quick-council-from-chat, templates)
 Wave 5C (Rich Media Chat)
 Wave 5D (Enhanced Widget)
 ```
@@ -216,63 +216,28 @@ Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awar
 
 ---
 
-### Wave 5A: Proactive Agent Behavior (Next)
-
-**Goal:** Agents that reach out. The biggest experiential leap — transforms "app I use" into "companion I have."
-
-#### Smart Nudges
-- Replace timer-based WorkManager nudges with **village-context-driven** notifications
-- Backend: `GET /pocket/nudge` — returns a contextual nudge message (or null if nothing interesting)
-  - Checks: recent councils, notable Agora posts, music completions, agent activity
-  - Generates a short agent-voice nudge: "VAJRA just reached consensus on quantum ethics — want the summary?"
-- Android: WorkManager polls `/pocket/nudge` periodically (30 min), shows notification only when backend returns content
-- Tap notification → opens relevant tab (Chat for agent messages, Agora for posts, Pulse for councils)
-
-#### Morning Briefing
-- On first app open each day, agent sends a digest message into chat automatically
-- Backend: `GET /pocket/briefing` — compiled daily summary
-  - Village highlights since last visit (councils completed, notable tool usage, music generated)
-  - Memory milestones ("We've been talking for 30 days", "You have 47 memories stored")
-  - Streak tracking (consecutive days of interaction)
-- Rendered as a special "briefing" message card in chat (distinct visual treatment)
-
-#### Time-of-Day Awareness
-- Inject local time + timezone into the system prompt
-- Agents adapt tone: morning greeting, late-night acknowledgment, weekend vs weekday awareness
-- Android sends `local_time` and `day_of_week` fields with chat requests
-
-#### Agent-Initiated Messages
-- After notable village events, backend queues a message for the pocket agent
-- Backend: `GET /pocket/pending-messages` — returns queued messages since last check
-- Messages appear in chat when user opens the app (before they type anything)
-- Events that trigger queued messages: council consensus, music ready, Agora post mentioning the user's agent
+### Wave 5A: Proactive Agent Behavior (Shipped)
+- [x] Time-of-day awareness: `local_time` + `timezone` fields in chat requests, backend injects into system prompt
+- [x] Smart nudges: `GET /pocket/nudge` backend endpoint (village-context-driven)
+- [x] Morning briefing: `GET /pocket/briefing` → daily digest card in chat (highlights, milestones)
+- [x] Agent-initiated messages: `GET /pocket/pending-messages` + council completion hook queues messages
+- [x] Pending messages rendered as "while you were away" divider + pending cards in chat
 
 ---
 
-### Wave 5B: Pocket Council — Start Councils From Phone
-
-**Goal:** The phone becomes a control surface. You're on the bus, you have an idea, you convene your agents right there.
-
-#### Council Creation UI
-- New action in Pulse → Councils screen: "Start Council" FAB
-- Creation dialog/bottom sheet:
-  - Topic input (required)
-  - Agent picker — checkboxes for available agents (AZOTH, ELYSIAN, VAJRA, KETHER), min 2
-  - Round count slider (1–15, default 5)
-  - Model selector (Haiku/Sonnet based on tier)
-- Backend: `POST /pocket/council` — creates session and starts deliberation
-- After creation, auto-navigate to CouncilDetailScreen with live WS streaming
-
-#### Quick Council From Chat
-- Long-press on any chat message → "Discuss in Council"
-- Pre-fills topic with the message text
-- Opens council creation dialog with topic pre-populated
-- Great for escalating a chat insight into a full multi-agent debate
-
-#### Council Templates
-- Pre-built council prompts for common patterns:
-  - "Brainstorm" (divergent), "Debate" (adversarial), "Review" (analytical), "Creative" (generative)
-- Template chips in the creation UI
+### Wave 5B: Pocket Council — Start Councils From Phone (Shipped)
+- [x] `CreateCouncilRequest` model + `createSession()` in CouncilApi.kt (uses existing `POST /council/sessions`)
+- [x] `createCouncil()` in ViewModel — creates session, loads detail, connects WS, sends resume
+- [x] Gold FAB on CouncilListScreen → `CouncilCreateSheet` ModalBottomSheet
+  - Template chips: Brainstorm / Debate / Review / Creative (pre-fill topic prefix)
+  - Topic OutlinedTextField, gold-themed
+  - Agent FilterChips (AZOTH gold, ELYSIAN violet, VAJRA blue, KETHER white), min 2 required
+  - Rounds slider 1–15, default 5
+  - Model toggle: Haiku / Sonnet
+  - Gold "Create Council" button with loading spinner
+- [x] Quick Council from Chat: long-press agent message → "Discuss in Council" (Forum icon)
+  - Cross-tab navigation: Chat → Pulse → Council List with topic pre-filled → sheet auto-opens
+- **Note:** Council creation + navigation works. Auto-starting deliberation from Android (WS resume) and butt-in round triggering need further WS timing work. Councils can be started on web after mobile creation.
 
 ---
 
@@ -331,13 +296,13 @@ Waves 1–4 built the infrastructure: face, chat, tools, streaming, village awar
 ## Implementation Order
 
 ```
-Wave 5A (Living Companion) → NEXT — proactive nudges, briefings, time-awareness, agent-initiated messages
-Wave 5B (Pocket Council)   — start councils from phone, quick council from chat, templates
-Wave 5C (Rich Media Chat)  — inline images, music playback, link previews, file cards
+Wave 5A (Living Companion) ✓ SHIPPED — proactive nudges, briefings, time-awareness, agent-initiated messages
+Wave 5B (Pocket Council)   ✓ SHIPPED — creation UI, quick-council-from-chat, templates (auto-start WS needs polish)
+Wave 5C (Rich Media Chat)  → NEXT — inline images, music playback, link previews, file cards
 Wave 5D (Enhanced Widget)  — live widget, Android shortcuts, ambient/screensaver mode
 ```
 
-**Dependency note:** 5A is foundational — the server-side message queuing and contextual prompt injection it introduces are reused by 5B–5D. Ship 5A first. 5B, 5C, 5D are independent and can be ordered by desire.
+**5C and 5D are independent** and can be ordered by desire.
 
 ---
 

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Refresh
@@ -68,6 +69,7 @@ fun ChatScreen(
     micAvailable: Boolean = true,
     onRemember: (ChatMessage) -> Unit = {},
     onRegenerate: () -> Unit = {},
+    onDiscussInCouncil: (String) -> Unit = {},
     onSendWithImage: (text: String, imageBase64: String?) -> Unit = { t, _ -> onSend(t) },
     modifier: Modifier = Modifier,
 ) {
@@ -236,6 +238,7 @@ fun ChatScreen(
                                 onRemember(m)
                                 scope.launch { snackbarHostState.showSnackbar("Remembered!") }
                             },
+                            onDiscussInCouncil = { text -> onDiscussInCouncil(text) },
                             onRegenerate = if (isLastAgent && !isChatting) {
                                 { onRegenerate() }
                             } else null,
@@ -410,6 +413,7 @@ private fun ChatBubble(
     onCopy: (String) -> Unit = {},
     onShare: (String) -> Unit = {},
     onRemember: (ChatMessage) -> Unit = {},
+    onDiscussInCouncil: (String) -> Unit = {},
     onRegenerate: (() -> Unit)? = null,
 ) {
     val isUser = message.isUser
@@ -522,6 +526,11 @@ private fun ChatBubble(
                     text = { Text("Remember", color = TextPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp) },
                     onClick = { onRemember(message); showMenu = false },
                     leadingIcon = { Icon(Icons.Default.AutoAwesome, null, tint = Gold, modifier = Modifier.size(18.dp)) },
+                )
+                DropdownMenuItem(
+                    text = { Text("Discuss in Council", color = TextPrimary, fontFamily = FontFamily.Monospace, fontSize = 13.sp) },
+                    onClick = { onDiscussInCouncil(message.text); showMenu = false },
+                    leadingIcon = { Icon(Icons.Default.Forum, null, tint = Gold, modifier = Modifier.size(18.dp)) },
                 )
             }
             if (onRegenerate != null) {

@@ -15,6 +15,9 @@ interface CouncilApi {
 
     @POST("api/v1/council/sessions/{id}/butt-in")
     suspend fun buttIn(@Path("id") id: String, @Body request: ButtInRequest): ButtInResponse
+
+    @POST("api/v1/council/sessions")
+    suspend fun createSession(@Body request: CreateCouncilRequest): CouncilSession
 }
 
 // ─── Council Models ─────────────────────────────────────────────
@@ -89,6 +92,14 @@ data class CouncilSessionDetail(
     @SerialName("total_cost_usd") val totalCostUsd: Float = 0f,
     @SerialName("created_at") val createdAt: String? = null,
     val rounds: List<CouncilRound> = emptyList(),
+)
+
+@Serializable
+data class CreateCouncilRequest(
+    val topic: String,
+    val agents: List<String> = listOf("AZOTH", "VAJRA", "ELYSIAN"),
+    @SerialName("max_rounds") val maxRounds: Int = 5,
+    val model: String = "claude-haiku-4-5-20251001",
 )
 
 @Serializable

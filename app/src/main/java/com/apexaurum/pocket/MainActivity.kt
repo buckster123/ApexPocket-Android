@@ -83,6 +83,8 @@ class MainActivity : ComponentActivity() {
                 val councilCurrentRound by vm.councilCurrentRound.collectAsStateWithLifecycle()
                 val councilStreaming by vm.councilStreaming.collectAsStateWithLifecycle()
                 val councilButtInSent by vm.councilButtInSent.collectAsStateWithLifecycle()
+                val councilCreating by vm.councilCreating.collectAsStateWithLifecycle()
+                val pendingCouncilTopic by vm.pendingCouncilTopic.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
 
                 // Request notification permission on Android 13+
@@ -128,6 +130,8 @@ class MainActivity : ComponentActivity() {
                         councilCurrentRound = councilCurrentRound,
                         councilStreaming = councilStreaming,
                         councilButtInSent = councilButtInSent,
+                        councilCreating = councilCreating,
+                        pendingCouncilTopic = pendingCouncilTopic,
                         isListening = isListening,
                         isSpeaking = isSpeaking,
                         autoRead = autoRead,
@@ -179,6 +183,8 @@ private fun MainScreen(
     councilCurrentRound: Int,
     councilStreaming: Boolean,
     councilButtInSent: Boolean,
+    councilCreating: Boolean,
+    pendingCouncilTopic: String?,
     isListening: Boolean,
     isSpeaking: Boolean,
     autoRead: Boolean,
@@ -315,6 +321,12 @@ private fun MainScreen(
                     micAvailable = micAvailable,
                     onRemember = { vm.rememberMessage(it) },
                     onRegenerate = { vm.regenerateLastResponse() },
+                    onDiscussInCouncil = { text ->
+                        vm.setPendingCouncilTopic(text.take(200))
+                        vm.fetchCouncilSessions()
+                        selectedTab = 3
+                        pulseNav = "council_list"
+                    },
                     onSendWithImage = { text, img -> vm.sendMessageWithImage(text, img) },
                 )
                 2 -> AgoraScreen(
@@ -334,6 +346,15 @@ private fun MainScreen(
                             pulseNav = "council_detail"
                         },
                         onRefresh = { vm.fetchCouncilSessions() },
+                        onCreateCouncil = { topic, agents, maxRounds, model ->
+                            vm.createCouncil(topic, agents, maxRounds, model) { id ->
+                                selectedCouncilId = id
+                                pulseNav = "council_detail"
+                            }
+                        },
+                        isCreating = councilCreating,
+                        pendingTopic = pendingCouncilTopic,
+                        onClearPendingTopic = { vm.clearPendingCouncilTopic() },
                     )
                     "council_detail" -> CouncilDetailScreen(
                         session = councilDetail,
