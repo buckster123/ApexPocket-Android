@@ -1,7 +1,11 @@
 package com.apexaurum.pocket.ui.screens
 
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,7 +14,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +26,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexaurum.pocket.cloud.*
@@ -106,8 +113,9 @@ fun CouncilDetailScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(bottom = if (session.state == "running") 8.dp else 16.dp),
         ) {
-            // Completed rounds
-            items(session.rounds, key = { it.roundNumber }) { round ->
+            // Completed rounds (distinctBy guards against backend returning duplicate round entries)
+            val uniqueRounds = session.rounds.distinctBy { it.roundNumber }
+            items(uniqueRounds, key = { "round_${it.roundNumber}" }) { round ->
                 RoundCard(round)
             }
 
@@ -125,7 +133,7 @@ fun CouncilDetailScreen(
                 Column(Modifier.padding(12.dp)) {
                     if (buttInSent) {
                         Text(
-                            "Voice will be heard next round",
+                            "Voice injected — round triggered",
                             color = StateWarm,
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace,
@@ -173,7 +181,7 @@ fun CouncilDetailScreen(
                             enabled = !buttInSent && buttInText.isNotBlank(),
                         ) {
                             Icon(
-                                Icons.Default.Send,
+                                Icons.AutoMirrored.Filled.Send,
                                 "Butt in",
                                 tint = if (buttInSent) TextMuted else Gold,
                             )
@@ -279,6 +287,7 @@ private fun LiveRoundCard(
     }
 }
 
+/** Collapsible agent card — truncated when collapsed, tap to expand. */
 @Composable
 private fun AgentCard(
     agentId: String,
@@ -288,21 +297,50 @@ private fun AgentCard(
     toolCalls: List<CouncilToolCall>? = null,
 ) {
     val color = agentColor(agentId)
+    // Streaming cards are always expanded; completed cards start collapsed
+    var expanded by remember { mutableStateOf(isStreaming) }
+    val isLong = content.length > 300
 
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = ApexSurface,
         border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(
+                if (!isStreaming && isLong) Modifier.clickable { expanded = !expanded }
+                else Modifier
+            ),
     ) {
-        Column(Modifier.padding(10.dp)) {
-            Text(
-                agentId,
-                color = color,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold,
-            )
+        Column(
+            Modifier
+                .padding(10.dp)
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow,
+                    )
+                ),
+        ) {
+            // Header row: agent name + expand/collapse indicator
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    agentId,
+                    color = color,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                )
+                if (!isStreaming && isLong) {
+                    Spacer(Modifier.weight(1f))
+                    Icon(
+                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "Collapse" else "Expand",
+                        tint = TextMuted,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
             Spacer(Modifier.height(4.dp))
 
             if (isStreaming && !hasOutput) {
@@ -313,22 +351,44 @@ private fun AgentCard(
                     fontFamily = FontFamily.Monospace,
                     fontStyle = FontStyle.Italic,
                 )
-            } else {
+            } else if (expanded || !isLong) {
                 Text(
                     text = if (isStreaming && hasOutput) "$content|" else content,
                     color = TextPrimary,
                     fontSize = 13.sp,
                     fontFamily = FontFamily.Monospace,
                 )
+            } else {
+                // Collapsed: show truncated preview
+                Text(
+                    text = content,
+                    color = TextPrimary,
+                    fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
 
-            toolCalls?.forEach { tool ->
+            // Tool calls (only when expanded or short)
+            if (expanded || !isLong) {
+                toolCalls?.forEach { tool ->
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "${tool.name} → ${tool.result?.take(100) ?: "..."}",
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            } else if (!toolCalls.isNullOrEmpty()) {
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    "${tool.name} → ${tool.result?.take(100) ?: "..."}",
+                    "${toolCalls.size} tool call${if (toolCalls.size > 1) "s" else ""}",
                     color = TextMuted,
                     fontSize = 10.sp,
                     fontFamily = FontFamily.Monospace,
+                    fontStyle = FontStyle.Italic,
                 )
             }
         }

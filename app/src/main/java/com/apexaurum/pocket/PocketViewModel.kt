@@ -388,7 +388,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 val client = ensureCouncilApi()
                 _councilDetail.value = client.getSession(sessionId)
-                // TODO: Auto-connect WS for live sessions crashes — debug with stack trace next session
+                // Auto-connect WS for live sessions
+                if (_councilDetail.value?.state == "running") {
+                    connectCouncilStream(sessionId)
+                }
             } catch (_: Exception) { }
         }
     }
@@ -409,7 +412,9 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) { }
         }
         councilCollectJob = viewModelScope.launch {
-            councilWs.events.collect { event -> handleCouncilEvent(event) }
+            try {
+                councilWs.events.collect { event -> handleCouncilEvent(event) }
+            } catch (_: Exception) { }
         }
     }
 
@@ -420,10 +425,11 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         councilWs.disconnect()
     }
 
-    /** Submit a butt-in message to the active council. */
+    /** Submit a butt-in message to the active council, then trigger +1 round. */
     fun submitButtIn(sessionId: String, message: String) {
         if (councilWs.connected.value) {
             councilWs.sendButtIn(message)
+            councilWs.sendResume(1)
             _councilButtInSent.value = true
         } else {
             viewModelScope.launch {

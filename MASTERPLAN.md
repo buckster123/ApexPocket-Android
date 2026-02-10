@@ -175,17 +175,17 @@ Curated from the 66 tools in the backend. Chosen for: text-friendly output, usef
 
 ---
 
-### Wave 4F: Council Spectator (Shipped — live streaming WIP)
+### Wave 4F: Council Spectator (Shipped)
 - [x] `CouncilApi.kt` — Retrofit interface + 8 model classes (JWT-authenticated via ws-token bridge)
-- [x] `CouncilWsClient.kt` — OkHttp WebSocket for per-token council streaming, butt-in send
+- [x] `CouncilWsClient.kt` — OkHttp WebSocket for per-token council streaming, butt-in + resume commands
 - [x] `CloudClient.createCouncilClient(jwt)` — JWT-auth'd Retrofit factory
 - [x] ViewModel: council state, session list/detail, agent output accumulation, butt-in
 - [x] Pulse sub-navigation: "Councils" chip → CouncilListScreen → CouncilDetailScreen → back
 - [x] CouncilListScreen: session cards with state badges (Live/Paused/Done), topic, round progress, agent dots
-- [x] CouncilDetailScreen: round-by-round history, agent cards with colored borders, tool calls, human interventions
-- [x] Butt-in input bar on running sessions (text + send, disabled after submission)
+- [x] CouncilDetailScreen: round-by-round history, collapsible agent cards (tap to expand), tool calls, human interventions
+- [x] Butt-in from phone triggers +1 round automatically (butt_in + resume via WS)
 - [x] Android back button navigates: Detail → List → Pulse Events
-- [ ] **WIP:** Live WebSocket streaming crashes on connect — needs stack trace debugging next session
+- [x] Fixed: duplicate round key crash (distinctBy + string-prefixed keys)
 
 ---
 
@@ -197,10 +197,10 @@ Wave 4B (Pocket Tools)  ✓ SHIPPED (12 tools: web, code, agora, music, vault, k
 Wave 4C (Agora Feed)    ✓ SHIPPED (5th tab, reactions, pagination)
 Wave 4D (Chat Enhance)  ✓ SHIPPED (long-press menu, image vision, remember, regenerate)
 Wave 4E (Pulse Live)    ✓ SHIPPED (6th tab, face ticker, badges, expression reactions)
-Wave 4F (Council)       ✓ SHIPPED (history viewer, butt-in — live WS streaming WIP)
+Wave 4F (Council)       ✓ SHIPPED (history, live streaming, butt-in triggers rounds, collapsible cards)
 ```
 
-Next: Debug 4F live streaming crash, then Wave 5 planning.
+Next: Wave 5 planning.
 
 ---
 

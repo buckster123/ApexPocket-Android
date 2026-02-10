@@ -126,6 +126,15 @@ class CouncilWsClient {
         webSocket?.send(payload.toString())
     }
 
+    /** Send resume command to trigger N more rounds. */
+    fun sendResume(numRounds: Int = 1) {
+        val payload = buildJsonObject {
+            put("type", "resume")
+            put("num_rounds", numRounds)
+        }
+        webSocket?.send(payload.toString())
+    }
+
     private fun parseEvent(type: String, obj: JsonObject): CouncilWsEvent? {
         fun str(key: String) = obj[key]?.jsonPrimitive?.content
         fun int(key: String) = obj[key]?.jsonPrimitive?.content?.toIntOrNull() ?: 0
