@@ -207,11 +207,12 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         // Bridge music player state → DataStore for widget
+        // Only emit when widget-relevant fields change (not on every position tick)
         viewModelScope.launch {
             combine(musicPlayer.playerState, musicPlayer.currentTrack) { state, track ->
-                Pair(state, track)
-            }.collect { (state, track) ->
-                repo.saveWidgetMusicState(title = track?.title, isPlaying = state.isPlaying)
+                Pair(track?.title, state.isPlaying)
+            }.distinctUntilChanged().collect { (title, isPlaying) ->
+                repo.saveWidgetMusicState(title = title, isPlaying = isPlaying)
                 try { com.apexaurum.pocket.widget.SoulWidget.refreshAll(getApplication()) } catch (_: Exception) {}
             }
         }
