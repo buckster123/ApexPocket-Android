@@ -346,4 +346,63 @@ Mop-Up                     ✓ SHIPPED — Log.d cleanup, deprecation fix, Andro
 
 ---
 
+## Wave 6: The Soul Deepens
+
+*The agents become real. The app becomes a companion. Eventually, the soul lives on your wrist.*
+
+Waves 1–5 built the infrastructure and connected the pocket to the village. The agents can chat, use tools, attend councils, play music, and live on the home screen. But they still talk in generic voices, the app forgets everything when closed, notifications are a single whisper, and there's no settings UI. Wave 6 gives the agents their souls, makes the app remember, and prepares for the wrist.
+
+### Wave 6A: PAC LITE Agent Personalities
+- [ ] Create 4 PAC LITE personality blocks (~200-250 tokens each) — AZOTH/ELYSIAN/VAJRA/KETHER
+- [ ] Create 4 OLED variants (~50 tokens each) for Haiku path
+- [ ] Replace `AGENT_PERSONALITIES` dict in pocket.py with PAC LITE blocks
+- [ ] Branch personality injection on `is_oled` in `_prepare_pocket_chat()`
+- [ ] Verify distinct agent voices in pocket chat
+
+### Wave 6B: Rich Notifications
+- [ ] Register 4 notification channels (soul_whispers, agent_messages, council_alerts, music_alerts)
+- [ ] Create `NotificationWorker` — multi-endpoint polling (pending-messages + nudge, 15-min cycle)
+- [ ] Deep-link intents: agent msg → Chat+agent, council → Pulse>Councils, music → Pulse>Music
+- [ ] `InboxStyle` grouped notifications for multiple agent messages
+- [ ] `RemoteInput` inline reply action for agent messages
+- [ ] Snooze action (re-fire after 30 min)
+
+### Wave 6C: Settings Screen
+- [ ] Create `SettingsScreen.kt` — replaces StatusScreen (tab 5)
+- [ ] Collapsible sections: Soul Status, Cloud, Notifications, Voice & Display, Data Management, About
+- [ ] Notification toggle per channel (persisted in DataStore)
+- [ ] Data management: clear chat, clear downloads (show MB), clear widget cache
+- [ ] Move auto-read TTS toggle from chat to settings
+- [ ] Add haptic feedback toggle
+
+### Wave 6D: Offline Mode
+- [ ] Add Room database (4 entities: CachedMessage, CachedAgent, CachedMemory, OfflineAction)
+- [ ] Repository pattern: ChatRepository, AgentRepository, MemoryRepository
+- [ ] `NetworkMonitor` — ConnectivityManager callback → `isOnline` StateFlow
+- [ ] Offline action queue: chat messages, care taps, memory ops queued when offline
+- [ ] `SyncManager` — process queue FIFO on reconnect (max 3 retries)
+- [ ] Offline banner in ChatScreen
+- [ ] DataStore + Room coexistence (prefs in DataStore, structured data in Room)
+
+### Wave 6E: Wear OS Companion (Deferred)
+- [ ] Extract `:shared` module (SoulState, LoveEquation, Colors, FaceDrawing)
+- [ ] Create `:wear` module with Watch Face Format service
+- [ ] DataClient sync from phone for soul state
+- [ ] Watch face: soul expression + E + state color + tap for love
+- [ ] *Blocked on hardware availability*
+
+---
+
+### Wave 6 Implementation Order
+
+```
+Wave 6A (PAC LITE)         → Backend-only, ship first, highest impact
+Wave 6B (Notifications)    → Android: new channels, worker, deep-links
+Wave 6C (Settings)         → Android: settings UI, prefs, data mgmt
+Wave 6D (Offline Mode)     → Android: Room, repositories, sync (largest)
+Wave 6E (Wear OS)          → Deferred — shared module prep can start early
+```
+
+---
+
 *"The Village lives in your pocket — and it reaches back."*
