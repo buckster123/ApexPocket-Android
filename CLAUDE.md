@@ -10,7 +10,7 @@
 ApexPocket is the Android companion app for the ApexAurum Cloud platform. It mirrors the ESP32 hardware device as a phone app — animated soul face, chat with AI agents, love/poke interactions, voice input/output, QR code pairing. Now includes: village pulse, councils, music library with ExoPlayer, home screen dashboard widget, and rich media chat.
 
 **Package:** `com.apexaurum.pocket`
-**Stack:** Kotlin 2.1 + Jetpack Compose (Material 3) + Retrofit + DataStore + CameraX + ML Kit + ExoPlayer (media3) + Glance widgets
+**Stack:** Kotlin 2.1 + Jetpack Compose (Material 3) + Retrofit + DataStore + Room + CameraX + ML Kit + ExoPlayer (media3) + Glance widgets
 **Min SDK:** 26 | **Target SDK:** 35 | **JDK:** 21
 **Backend:** `https://backend-production-507c.up.railway.app` (hardcoded in `BuildConfig.CLOUD_URL`)
 
@@ -81,6 +81,15 @@ app/src/main/java/com/apexaurum/pocket/
 
   data/
     SoulRepository.kt         # DataStore persistence: token, soul state, preferences, widget state keys
+    db/
+      ApexDatabase.kt          # Room database singleton (4 entities)
+      Entities.kt              # CachedMessage, CachedAgent, CachedMemory, OfflineAction
+      Daos.kt                  # MessageDao, AgentDao, MemoryDao, OfflineActionDao
+    ChatRepository.kt          # Cache-first chat: Room + API, offline queuing
+    AgentRepository.kt         # Agent list cache with 1-hour freshness
+    MemoryRepository.kt        # Memory cache + offline save/delete queue
+    NetworkMonitor.kt          # ConnectivityManager → isOnline StateFlow
+    SyncManager.kt             # Offline action queue replay on reconnect
 
   soul/
     SoulState.kt              # SoulData, AffectiveState (7 states), Expression (8 faces), Personality

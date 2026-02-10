@@ -74,6 +74,7 @@ fun ChatScreen(
     onDiscussInCouncil: (String) -> Unit = {},
     onSendWithImage: (text: String, imageBase64: String?) -> Unit = { t, _ -> onSend(t) },
     onPlayAudio: (title: String, audioUrl: String, duration: Float, taskId: String) -> Unit = { _, _, _, _ -> },
+    isOnline: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf("") }
@@ -204,6 +205,22 @@ fun ChatScreen(
                         uncheckedThumbColor = TextMuted,
                         uncheckedTrackColor = ApexBorder,
                     ),
+                )
+            }
+        }
+
+        // Offline banner
+        AnimatedVisibility(visible = !isOnline) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = ApexSurface,
+            ) {
+                Text(
+                    text = "offline — cached messages shown",
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 )
             }
         }

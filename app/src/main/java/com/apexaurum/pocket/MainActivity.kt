@@ -101,6 +101,7 @@ class MainActivity : ComponentActivity() {
                 val currentPlayingTrack by vm.musicPlayer.currentTrack.collectAsStateWithLifecycle()
                 val musicDownloads by vm.musicDownloader.downloads.collectAsStateWithLifecycle()
                 val hapticEnabled by vm.hapticEnabled.collectAsStateWithLifecycle()
+                val isOnline by vm.isOnline.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
 
                 // Request notification permission on Android 13+
@@ -174,6 +175,7 @@ class MainActivity : ComponentActivity() {
                         autoRead = autoRead,
                         pendingVoiceText = pendingVoiceText,
                         micAvailable = micAvailable,
+                        isOnline = isOnline,
                         onVibrate = { pattern -> if (hapticEnabled) vibrate(pattern) },
                     )
                 }
@@ -244,6 +246,7 @@ private fun MainScreen(
     autoRead: Boolean,
     pendingVoiceText: String?,
     micAvailable: Boolean,
+    isOnline: Boolean,
     onVibrate: (VibratePattern) -> Unit,
 ) {
     var selectedTab by remember {
@@ -420,6 +423,7 @@ private fun MainScreen(
                     },
                     onSendWithImage = { text, img -> vm.sendMessageWithImage(text, img) },
                     onPlayAudio = { title, url, dur, taskId -> vm.playAudioFromChat(title, url, dur, taskId) },
+                    isOnline = isOnline,
                 )
                 2 -> AgoraScreen(
                     posts = agoraPosts,

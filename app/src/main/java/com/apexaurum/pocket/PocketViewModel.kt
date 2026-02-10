@@ -4,7 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.apexaurum.pocket.cloud.*
-import com.apexaurum.pocket.data.SoulRepository
+import com.apexaurum.pocket.data.*
+import com.apexaurum.pocket.data.db.ApexDatabase
 import com.apexaurum.pocket.soul.LoveEquation
 import com.apexaurum.pocket.soul.SoulData
 import com.apexaurum.pocket.voice.SpeechService
@@ -67,6 +68,15 @@ enum class CloudState { DISCONNECTED, CONNECTING, CONNECTED, ERROR }
 class PocketViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repo = SoulRepository(application)
+
+    // ── Offline infrastructure ──
+    private val db = ApexDatabase.getInstance(application)
+    val networkMonitor = NetworkMonitor(application)
+    private val chatRepo = ChatRepository(db)
+    private val agentRepo = AgentRepository(db)
+    private val memoryRepo = MemoryRepository(db)
+    private val syncManager = SyncManager(db)
+    val isOnline: StateFlow<Boolean> = networkMonitor.isOnline
 
     // Soul state (from DataStore, reactive)
     val soul: StateFlow<SoulData> = repo.soulFlow
@@ -231,6 +241,16 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
 
         // Register music toggle bridge for widget broadcast
         com.apexaurum.pocket.widget.MusicToggleBridge.toggleCallback = { musicPlayer.togglePlayPause() }
+
+        // ── Offline sync: process queue when network comes back ──
+        viewModelScope.launch {
+            isOnline.collect { online ->
+                if (online) {
+                    val currentApi = api ?: return@collect
+                    try { syncManager.processQueue(currentApi) } catch (_: Exception) {}
+                }
+            }
+        }
     }
 
     /** Pair with cloud using a device token. */
@@ -254,6 +274,16 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
 
     /** Connect to cloud — fetch status + agents + history. */
     private fun connectToCloud() {
+        // Load cached data from Room immediately (before network)
+        viewModelScope.launch {
+            try {
+                val cachedAgents = agentRepo.getCached()
+                if (cachedAgents.isNotEmpty() && _agents.value.isEmpty()) {
+                    _agents.value = cachedAgents
+                }
+            } catch (_: Exception) {}
+        }
+
         viewModelScope.launch {
             _cloudState.value = CloudState.CONNECTING
             try {
@@ -262,10 +292,13 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     _motd.value = status.motd
                     _cloudState.value = CloudState.CONNECTED
                 }
-                // Fetch agents
-                val agentsResp = api?.getAgents()
-                if (agentsResp != null) {
-                    _agents.value = agentsResp.agents
+                // Fetch agents + cache
+                val currentApi = api
+                if (currentApi != null) {
+                    try {
+                        val fresh = agentRepo.refreshFromApi(currentApi)
+                        _agents.value = fresh
+                    } catch (_: Exception) {}
                 }
                 // Fetch memories
                 fetchMemories()
@@ -283,15 +316,21 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Fetch memories from cloud (filtered by current agent). */
+    /** Fetch memories from cloud (filtered by current agent). Cache to Room. */
     fun fetchMemories() {
         viewModelScope.launch {
             _memoriesLoading.value = true
             try {
                 val agent = soul.value.selectedAgentId
-                val resp = api?.getAgentMemories(agent)
-                if (resp != null) {
-                    _memories.value = resp.memories
+                val currentApi = api
+                if (currentApi != null && isOnline.value) {
+                    val fresh = memoryRepo.refreshFromApi(currentApi, agent)
+                    _memories.value = fresh
+                } else {
+                    // Offline — load from Room cache
+                    memoryRepo.memoriesForAgent(agent).first().let { cached ->
+                        if (cached.isNotEmpty()) _memories.value = cached
+                    }
                 }
             } catch (_: Exception) {
                 // Silent — memories are best-effort
@@ -301,19 +340,12 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Save a memory to the cloud. */
+    /** Save a memory — online via API, offline via queue. */
     fun saveMemory(key: String, value: String, type: String = "fact") {
         viewModelScope.launch {
             try {
                 val agent = soul.value.selectedAgentId
-                api?.saveMemory(
-                    SaveMemoryRequest(
-                        agent = agent,
-                        memoryType = type,
-                        key = key,
-                        value = value,
-                    )
-                )
+                memoryRepo.save(api, agent, key, value, type, isOnline.value)
                 fetchMemories()
             } catch (_: Exception) {
                 // Silent
@@ -321,15 +353,14 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Delete a memory from the cloud. */
+    /** Delete a memory — online via API, offline via queue. */
     fun deleteMemory(memoryId: String) {
         viewModelScope.launch {
             // Optimistic removal
             _memories.value = _memories.value.filter { it.id != memoryId }
             try {
-                api?.deleteMemory(memoryId)
+                memoryRepo.delete(api, memoryId, isOnline.value)
             } catch (_: Exception) {
-                // Refresh to restore if failed
                 fetchMemories()
             }
         }
@@ -757,24 +788,39 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Load chat history from cloud for the given (or current) agent. */
+    /** Load chat history — from cloud when online, from Room cache when offline. */
     fun loadHistory(agentOverride: String? = null) {
         viewModelScope.launch {
+            val agent = agentOverride ?: soul.value.selectedAgentId
+
+            // Load cached messages from Room first (instant)
             try {
-                val agent = agentOverride ?: soul.value.selectedAgentId
+                chatRepo.messagesForAgent(agent).first().let { cached ->
+                    if (cached.isNotEmpty() && _messages.value.isEmpty()) {
+                        _messages.value = cached
+                    }
+                }
+            } catch (_: Exception) {}
+
+            // Then refresh from cloud if online
+            if (!isOnline.value) return@launch
+            try {
                 val resp = api?.getHistory(agent) ?: return@launch
                 // Persist conversation ID
                 resp.conversationId?.let { id ->
                     repo.saveConversationId(agent, id)
                 }
                 // Replace messages with history
-                _messages.value = resp.messages.map { m ->
+                val msgs = resp.messages.map { m ->
                     ChatMessage(
                         text = m.text,
                         isUser = m.isUser,
                         timestamp = m.timestamp,
                     )
                 }
+                _messages.value = msgs
+                // Cache to Room
+                chatRepo.replaceFromHistory(agent, msgs)
             } catch (_: Exception) {
                 // Silent — history loading is best-effort
             }
@@ -839,22 +885,30 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Send a love tap (care). */
+    /** Send a love tap (care). Always applies locally; queues cloud call when offline. */
     fun love() {
         val current = soul.value
         val updated = LoveEquation.applyCare(current, 1.5f)
         val evolved = LoveEquation.evolvePersonality(updated)
         saveSoul(evolved)
-        reportCare("love", 1.5f, evolved.e)
+        if (isOnline.value) {
+            reportCare("love", 1.5f, evolved.e)
+        } else {
+            viewModelScope.launch { chatRepo.queueOfflineCare("love", 1.5f, evolved.e) }
+        }
         viewModelScope.launch { repo.updateLastInteraction() }
     }
 
-    /** Send a poke tap (care). */
+    /** Send a poke tap (care). Always applies locally; queues cloud call when offline. */
     fun poke() {
         val current = soul.value
         val updated = LoveEquation.applyCare(current, 0.5f)
         saveSoul(updated)
-        reportCare("poke", 0.5f, updated.e)
+        if (isOnline.value) {
+            reportCare("poke", 0.5f, updated.e)
+        } else {
+            viewModelScope.launch { chatRepo.queueOfflineCare("poke", 0.5f, updated.e) }
+        }
         viewModelScope.launch { repo.updateLastInteraction() }
     }
 
@@ -866,13 +920,19 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         if (text.isBlank() || _isChatting.value) return
 
         val currentSoul = soul.value
-        _messages.value = _messages.value + ChatMessage(
+        val userMsg = ChatMessage(
             text = text,
             isUser = true,
             hasImage = imageBase64 != null,
         )
+        _messages.value = _messages.value + userMsg
         _isChatting.value = true
         viewModelScope.launch { repo.updateLastInteraction() }
+
+        // Cache user message to Room
+        viewModelScope.launch {
+            try { chatRepo.appendMessage(currentSoul.selectedAgentId, userMsg) } catch (_: Exception) {}
+        }
 
         viewModelScope.launch {
             try {
@@ -907,11 +967,14 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 // Non-streaming fallback
                 val response = api?.chat(request)
                 if (response != null) {
-                    _messages.value = _messages.value + ChatMessage(
+                    val agentMsg = ChatMessage(
                         text = response.response,
                         isUser = false,
                         expression = response.expression,
                     )
+                    _messages.value = _messages.value + agentMsg
+                    // Cache agent response to Room
+                    try { chatRepo.appendMessage(currentSoul.selectedAgentId, agentMsg) } catch (_: Exception) {}
                     response.conversationId?.let { id ->
                         repo.saveConversationId(currentSoul.selectedAgentId, id)
                     }
@@ -1036,17 +1099,35 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             saveSoul(updated)
         }
 
+        // Cache streamed response to Room
+        if (accumulated.isNotBlank()) {
+            try {
+                chatRepo.appendMessage(
+                    currentSoul.selectedAgentId,
+                    ChatMessage(text = accumulated, isUser = false, expression = expression),
+                )
+            } catch (_: Exception) {}
+        }
+
         // Auto-read the complete response
         if (autoRead.value && accumulated.isNotBlank()) {
             speechService.speak(accumulated, currentSoul.selectedAgentId)
         }
     }
 
-    /** Select a different agent. */
+    /** Select a different agent. Loads cached messages immediately, refreshes from cloud. */
     fun selectAgent(agentId: String) {
         val updated = soul.value.copy(selectedAgentId = agentId)
         saveSoul(updated)
         _messages.value = emptyList()
+        // Load cached first for instant display
+        viewModelScope.launch {
+            try {
+                chatRepo.messagesForAgent(agentId).first().let { cached ->
+                    if (cached.isNotEmpty()) _messages.value = cached
+                }
+            } catch (_: Exception) {}
+        }
         loadHistory(agentId)
         fetchMemories()
     }
@@ -1114,7 +1195,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearChat() {
         _messages.value = emptyList()
-        viewModelScope.launch { repo.clearConversationIds() }
+        viewModelScope.launch {
+            repo.clearConversationIds()
+            try { chatRepo.clearAll() } catch (_: Exception) {}
+        }
     }
 
     fun clearDownloads(): Int {
@@ -1152,6 +1236,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         disconnectCouncilStream()
         musicPlayer.release()
         speechService.destroy()
+        networkMonitor.unregister()
         com.apexaurum.pocket.widget.MusicToggleBridge.toggleCallback = null
     }
 }

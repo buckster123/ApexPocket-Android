@@ -3,6 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -100,4 +101,9 @@ dependencies {
     // Media3 (ExoPlayer for in-app audio playback)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
+
+    // Room (offline cache + action queue)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
 }

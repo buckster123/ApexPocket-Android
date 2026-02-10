@@ -385,14 +385,17 @@ Waves 1–5 built the infrastructure and connected the pocket to the village. Th
 - [x] 5 new DataStore keys (haptic + 4 notification toggles)
 - [x] MusicDownloadManager: clearAll() + getTotalSizeBytes()
 
-### Wave 6D: Offline Mode
-- [ ] Add Room database (4 entities: CachedMessage, CachedAgent, CachedMemory, OfflineAction)
-- [ ] Repository pattern: ChatRepository, AgentRepository, MemoryRepository
-- [ ] `NetworkMonitor` — ConnectivityManager callback → `isOnline` StateFlow
-- [ ] Offline action queue: chat messages, care taps, memory ops queued when offline
-- [ ] `SyncManager` — process queue FIFO on reconnect (max 3 retries)
-- [ ] Offline banner in ChatScreen
-- [ ] DataStore + Room coexistence (prefs in DataStore, structured data in Room)
+### Wave 6D: Offline Mode (Shipped)
+- [x] Add Room database (4 entities: CachedMessage, CachedAgent, CachedMemory, OfflineAction)
+- [x] Repository pattern: ChatRepository, AgentRepository, MemoryRepository
+- [x] `NetworkMonitor` — ConnectivityManager callback → `isOnline` StateFlow
+- [x] Offline action queue: care taps, memory ops queued when offline
+- [x] `SyncManager` — process queue FIFO on reconnect (max 3 retries)
+- [x] Offline banner in ChatScreen (animated "offline — cached messages shown")
+- [x] DataStore + Room coexistence (prefs in DataStore, structured data in Room)
+- [x] Cache-first pattern: agents + chat history + memories loaded from Room instantly, refreshed from cloud
+- [x] Love/poke taps work offline (local soul math, cloud call queued)
+- [x] Agent list cached — switching agents works offline
 
 ### Wave 6E: Wear OS Companion (Deferred)
 - [ ] Extract `:shared` module (SoulState, LoveEquation, Colors, FaceDrawing)
@@ -409,7 +412,7 @@ Waves 1–5 built the infrastructure and connected the pocket to the village. Th
 Wave 6A (PAC LITE)         → SHIPPED — 3 personality tiers, backend-only
 Wave 6B (Notifications)    → SHIPPED — 4 channels, NotificationWorker, deep-links
 Wave 6C (Settings)         → SHIPPED — 6-section settings, toggles, data mgmt
-Wave 6D (Offline Mode)     → Android: Room, repositories, sync (largest)
+Wave 6D (Offline Mode)     → SHIPPED — Room DB, cache-first repos, NetworkMonitor, SyncManager
 Wave 6E (Wear OS)          → Deferred — shared module prep can start early
 ```
 
