@@ -39,6 +39,7 @@ class SoulRepository(private val context: Context) {
         val LAST_INTERACTION_MS = longPreferencesKey("last_interaction_ms")
         val LAST_NUDGE_TIER = intPreferencesKey("last_nudge_tier")
         val CONVERSATION_IDS = stringPreferencesKey("conversation_ids")
+        val LAST_BRIEFING_DATE = stringPreferencesKey("last_briefing_date")
     }
 
     /** Observe soul state as a Flow (reactive). */
@@ -139,6 +140,18 @@ class SoulRepository(private val context: Context) {
     suspend fun updateNudgeTier(tier: Int) {
         context.dataStore.edit { prefs ->
             prefs[Keys.LAST_NUDGE_TIER] = tier
+        }
+    }
+
+    /** Last briefing date (ISO date string e.g. "2026-02-10"). */
+    val lastBriefingDateFlow: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[Keys.LAST_BRIEFING_DATE]
+    }
+
+    /** Mark today as briefed. */
+    suspend fun updateBriefingDate(date: String) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.LAST_BRIEFING_DATE] = date
         }
     }
 

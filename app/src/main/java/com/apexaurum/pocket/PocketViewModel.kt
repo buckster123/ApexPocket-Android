@@ -25,6 +25,8 @@ data class ChatMessage(
     val toolName: String? = null,      // currently executing tool (shows spinner)
     val toolResults: List<ToolInfo> = emptyList(),  // completed tool results
     val hasImage: Boolean = false,     // photo was attached to this message
+    val type: String = "message",      // "message" | "briefing" | "divider" | "pending"
+    val briefingData: com.apexaurum.pocket.cloud.BriefingData? = null,
 )
 
 /** Tool execution result for display in chat. */
@@ -196,6 +198,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 fetchMemories()
                 // Load chat history for current agent
                 loadHistory()
+                // Fetch pending agent-initiated messages
+                fetchPendingMessages()
+                // Check for daily briefing (after history so it appears at top)
+                checkDailyBriefing()
                 // Load Agora feed
                 loadAgoraFeed()
             } catch (e: Exception) {
@@ -502,6 +508,64 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 }
             } catch (_: Exception) {
                 // Silent — history loading is best-effort
+            }
+        }
+    }
+
+    /** Fetch pending agent-initiated messages and inject them into chat. */
+    private fun fetchPendingMessages() {
+        viewModelScope.launch {
+            try {
+                val resp = api?.getPendingMessages() ?: return@launch
+                if (resp.messages.isEmpty()) return@launch
+
+                val divider = ChatMessage(
+                    text = "while you were away",
+                    isUser = false,
+                    type = "divider",
+                    timestamp = System.currentTimeMillis() - 1000,
+                )
+                val pendingMsgs = resp.messages.map { msg ->
+                    ChatMessage(
+                        text = msg.text,
+                        isUser = false,
+                        type = "pending",
+                        expression = "NEUTRAL",
+                        timestamp = System.currentTimeMillis() - 500,
+                    )
+                }
+                _messages.value = _messages.value + listOf(divider) + pendingMsgs
+            } catch (_: Exception) {
+                // Silent — pending messages are best-effort
+            }
+        }
+    }
+
+    /** Check if we need a daily briefing and inject it at the start of chat. */
+    private fun checkDailyBriefing() {
+        viewModelScope.launch {
+            try {
+                val today = java.time.LocalDate.now().toString()
+                val lastDate = repo.lastBriefingDateFlow.first()
+                if (lastDate == today) return@launch
+
+                val now = java.time.LocalDateTime.now()
+                val localTime = now.format(java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME)
+                val resp = api?.getBriefing(localTime) ?: return@launch
+                val briefing = resp.briefing ?: return@launch
+
+                // Inject briefing as the first message in chat
+                val briefingMsg = ChatMessage(
+                    text = briefing.greeting,
+                    isUser = false,
+                    type = "briefing",
+                    briefingData = briefing,
+                    timestamp = 0L,  // ensures it sorts first
+                )
+                _messages.value = listOf(briefingMsg) + _messages.value
+                repo.updateBriefingDate(today)
+            } catch (_: Exception) {
+                // Silent — briefing is best-effort
             }
         }
     }

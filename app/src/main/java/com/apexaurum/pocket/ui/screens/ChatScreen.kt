@@ -214,28 +214,34 @@ fun ChatScreen(
             contentPadding = PaddingValues(vertical = 8.dp),
         ) {
             items(messages, key = { it.timestamp }) { msg ->
-                val isLastAgent = !msg.isUser && msg == messages.lastOrNull { !it.isUser }
-                ChatBubble(
-                    message = msg,
-                    onCopy = { text ->
-                        clipboardManager.setText(AnnotatedString(text))
-                        scope.launch { snackbarHostState.showSnackbar("Copied!") }
-                    },
-                    onShare = { text ->
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "text/plain"
-                            putExtra(Intent.EXTRA_TEXT, text)
-                        }
-                        context.startActivity(Intent.createChooser(intent, "Share message"))
-                    },
-                    onRemember = { m ->
-                        onRemember(m)
-                        scope.launch { snackbarHostState.showSnackbar("Remembered!") }
-                    },
-                    onRegenerate = if (isLastAgent && !isChatting) {
-                        { onRegenerate() }
-                    } else null,
-                )
+                when (msg.type) {
+                    "briefing" -> BriefingCard(msg)
+                    "divider" -> DividerCard(msg.text)
+                    else -> {
+                        val isLastAgent = !msg.isUser && msg == messages.lastOrNull { !it.isUser }
+                        ChatBubble(
+                            message = msg,
+                            onCopy = { text ->
+                                clipboardManager.setText(AnnotatedString(text))
+                                scope.launch { snackbarHostState.showSnackbar("Copied!") }
+                            },
+                            onShare = { text ->
+                                val intent = Intent(Intent.ACTION_SEND).apply {
+                                    type = "text/plain"
+                                    putExtra(Intent.EXTRA_TEXT, text)
+                                }
+                                context.startActivity(Intent.createChooser(intent, "Share message"))
+                            },
+                            onRemember = { m ->
+                                onRemember(m)
+                                scope.launch { snackbarHostState.showSnackbar("Remembered!") }
+                            },
+                            onRegenerate = if (isLastAgent && !isChatting) {
+                                { onRegenerate() }
+                            } else null,
+                        )
+                    }
+                }
             }
 
             // Show typing indicator only before streaming placeholder appears
@@ -559,6 +565,93 @@ private fun ToolResultCard(tool: ToolInfo) {
                     fontFamily = FontFamily.Monospace,
                     lineHeight = 15.sp,
                     maxLines = 4,
+                )
+            }
+        }
+    }
+}
+
+/** "While you were away" divider — centered text with horizontal lines. */
+@Composable
+private fun DividerCard(text: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        HorizontalDivider(modifier = Modifier.weight(1f), color = Gold.copy(alpha = 0.3f))
+        Text(
+            text = text,
+            color = Gold.copy(alpha = 0.6f),
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(horizontal = 12.dp),
+        )
+        HorizontalDivider(modifier = Modifier.weight(1f), color = Gold.copy(alpha = 0.3f))
+    }
+}
+
+/** Daily briefing card — gold-tinted, structured highlights. */
+@Composable
+private fun BriefingCard(message: ChatMessage) {
+    val briefing = message.briefingData ?: return
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Gold.copy(alpha = 0.08f))
+            .padding(14.dp),
+    ) {
+        Column {
+            // Greeting
+            Text(
+                text = briefing.greeting,
+                color = Gold,
+                fontSize = 16.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+            )
+            Spacer(Modifier.height(10.dp))
+
+            // Highlights
+            briefing.highlights.forEach { highlight ->
+                Row(
+                    modifier = Modifier.padding(vertical = 3.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    val icon = when (highlight.type) {
+                        "council" -> "\u2696"  // scales
+                        "music" -> "\u266B"    // music note
+                        "agora" -> "\u2606"    // star
+                        else -> "\u2022"       // bullet
+                    }
+                    Text(
+                        text = icon,
+                        color = Gold.copy(alpha = 0.7f),
+                        fontSize = 14.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = highlight.text,
+                        color = TextPrimary,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                        lineHeight = 18.sp,
+                    )
+                }
+            }
+
+            // Milestone
+            briefing.milestone?.let { milestone ->
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = milestone,
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Normal,
                 )
             }
         }

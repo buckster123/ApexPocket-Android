@@ -62,6 +62,23 @@ interface PocketApi {
         @Path("postId") postId: String,
         @Body request: ReactRequest,
     ): ReactResponse
+
+    // ─── Smart Nudges ──────────────────────────────────────────────
+
+    @GET("api/v1/pocket/nudge")
+    suspend fun getNudge(): NudgeResponse
+
+    // ─── Morning Briefing ──────────────────────────────────────────
+
+    @GET("api/v1/pocket/briefing")
+    suspend fun getBriefing(
+        @Query("local_time") localTime: String? = null,
+    ): BriefingResponse
+
+    // ─── Pending Messages ──────────────────────────────────────────
+
+    @GET("api/v1/pocket/pending-messages")
+    suspend fun getPendingMessages(): PendingMessagesResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -254,6 +271,57 @@ data class ReactResponse(
     val action: String = "",
     @SerialName("reaction_type") val reactionType: String = "",
     @SerialName("reaction_count") val reactionCount: Int = 0,
+)
+
+// ─── Pending Messages Models ────────────────────────────────────
+
+@Serializable
+data class PendingMessagesResponse(
+    val messages: List<PendingMessageItem> = emptyList(),
+)
+
+@Serializable
+data class PendingMessageItem(
+    val id: String,
+    @SerialName("agent_id") val agentId: String = "AZOTH",
+    val text: String = "",
+    @SerialName("event_type") val eventType: String = "general",
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+// ─── Morning Briefing Models ────────────────────────────────────
+
+@Serializable
+data class BriefingResponse(
+    val briefing: BriefingData? = null,
+)
+
+@Serializable
+data class BriefingData(
+    val greeting: String = "Welcome back",
+    val highlights: List<BriefingHighlight> = emptyList(),
+    val milestone: String? = null,
+    @SerialName("agent_id") val agentId: String = "AZOTH",
+)
+
+@Serializable
+data class BriefingHighlight(
+    val type: String = "general",  // council, music, agora
+    val text: String = "",
+)
+
+// ─── Smart Nudge Models ─────────────────────────────────────────
+
+@Serializable
+data class NudgeResponse(
+    val nudge: NudgeItem? = null,
+)
+
+@Serializable
+data class NudgeItem(
+    @SerialName("agent_id") val agentId: String = "AZOTH",
+    val text: String = "",
+    @SerialName("event_type") val eventType: String = "general",
 )
 
 // ─── Village Pulse Models ───────────────────────────────────────

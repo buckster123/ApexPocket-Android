@@ -23,11 +23,12 @@ class ApexPocketApp : Application() {
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(channel)
 
-        // Schedule periodic nudge worker (every 6 hours)
+        // Schedule periodic nudge worker (every 1 hour — backend controls rate-limiting)
         val nudgeRequest = PeriodicWorkRequestBuilder<NudgeWorker>(
-            6, TimeUnit.HOURS,
+            1, TimeUnit.HOURS,
         ).setConstraints(
             Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
                 .setRequiresBatteryNotLow(true)
                 .build()
         ).build()
