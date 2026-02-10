@@ -93,6 +93,23 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val expressionOverride: StateFlow<com.apexaurum.pocket.soul.Expression?> = _expressionOverride.asStateFlow()
     private var expressionOverrideJob: Job? = null
 
+    // Council Spectator
+    private val councilWs = CouncilWsClient()
+    private var councilApi: CouncilApi? = null
+    private var cachedJwt: String? = null
+    private var councilCollectJob: Job? = null
+    private val _councilSessions = MutableStateFlow<List<CouncilSession>>(emptyList())
+    val councilSessions: StateFlow<List<CouncilSession>> = _councilSessions.asStateFlow()
+    private val _councilDetail = MutableStateFlow<CouncilSessionDetail?>(null)
+    val councilDetail: StateFlow<CouncilSessionDetail?> = _councilDetail.asStateFlow()
+    val councilStreaming: StateFlow<Boolean> = councilWs.connected
+    private val _councilAgentOutputs = MutableStateFlow<Map<String, String>>(emptyMap())
+    val councilAgentOutputs: StateFlow<Map<String, String>> = _councilAgentOutputs.asStateFlow()
+    private val _councilCurrentRound = MutableStateFlow(0)
+    val councilCurrentRound: StateFlow<Int> = _councilCurrentRound.asStateFlow()
+    private val _councilButtInSent = MutableStateFlow(false)
+    val councilButtInSent: StateFlow<Boolean> = _councilButtInSent.asStateFlow()
+
     // Conversation IDs per agent (from DataStore)
     private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -151,6 +168,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     /** Un-pair from cloud. */
     fun unpair() {
         disconnectVillagePulse()
+        disconnectCouncilStream()
         viewModelScope.launch {
             repo.clearToken()
             _messages.value = emptyList()
@@ -339,6 +357,122 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         expressionOverrideJob = viewModelScope.launch {
             delay(durationMs)
             _expressionOverride.value = null
+        }
+    }
+
+    // ── Council Spectator ──
+
+    /** Ensure we have a JWT-authenticated council API client. */
+    private suspend fun ensureCouncilApi(): CouncilApi {
+        councilApi?.let { return it }
+        val resp = api?.getWsToken() ?: throw IllegalStateException("No pocket API")
+        cachedJwt = resp.token
+        val client = CloudClient.createCouncilClient(resp.token)
+        councilApi = client
+        return client
+    }
+
+    /** Fetch council sessions list. */
+    fun fetchCouncilSessions() {
+        viewModelScope.launch {
+            try {
+                val client = ensureCouncilApi()
+                _councilSessions.value = client.getSessions()
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Load a specific council session with round history. */
+    fun loadCouncilSession(sessionId: String) {
+        viewModelScope.launch {
+            try {
+                val client = ensureCouncilApi()
+                _councilDetail.value = client.getSession(sessionId)
+                // TODO: Auto-connect WS for live sessions crashes — debug with stack trace next session
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Connect to council WebSocket for live streaming. */
+    fun connectCouncilStream(sessionId: String) {
+        councilCollectJob?.cancel()
+        viewModelScope.launch {
+            try {
+                val jwt = cachedJwt ?: run {
+                    val resp = api?.getWsToken() ?: return@launch
+                    cachedJwt = resp.token
+                    resp.token
+                }
+                _councilAgentOutputs.value = emptyMap()
+                _councilButtInSent.value = false
+                councilWs.connect(sessionId, jwt, viewModelScope)
+            } catch (_: Exception) { }
+        }
+        councilCollectJob = viewModelScope.launch {
+            councilWs.events.collect { event -> handleCouncilEvent(event) }
+        }
+    }
+
+    /** Disconnect from council WebSocket. */
+    fun disconnectCouncilStream() {
+        councilCollectJob?.cancel()
+        councilCollectJob = null
+        councilWs.disconnect()
+    }
+
+    /** Submit a butt-in message to the active council. */
+    fun submitButtIn(sessionId: String, message: String) {
+        if (councilWs.connected.value) {
+            councilWs.sendButtIn(message)
+            _councilButtInSent.value = true
+        } else {
+            viewModelScope.launch {
+                try {
+                    val client = ensureCouncilApi()
+                    client.buttIn(sessionId, ButtInRequest(message))
+                    _councilButtInSent.value = true
+                } catch (_: Exception) { }
+            }
+        }
+    }
+
+    /** Clear council detail (back navigation). */
+    fun clearCouncilDetail() {
+        disconnectCouncilStream()
+        _councilDetail.value = null
+        _councilAgentOutputs.value = emptyMap()
+        _councilButtInSent.value = false
+    }
+
+    private fun handleCouncilEvent(event: CouncilWsEvent) {
+        when (event) {
+            is CouncilWsEvent.RoundStart -> {
+                _councilCurrentRound.value = event.roundNumber
+                _councilAgentOutputs.value = emptyMap()
+                _councilButtInSent.value = false
+            }
+            is CouncilWsEvent.AgentToken -> {
+                val current = _councilAgentOutputs.value.toMutableMap()
+                current[event.agentId] = (current[event.agentId] ?: "") + event.token
+                _councilAgentOutputs.value = current
+            }
+            is CouncilWsEvent.RoundComplete -> refreshCouncilDetail()
+            is CouncilWsEvent.End -> {
+                refreshCouncilDetail()
+                _councilAgentOutputs.value = emptyMap()
+            }
+            else -> { }
+        }
+    }
+
+    private fun refreshCouncilDetail() {
+        _councilDetail.value?.let { detail ->
+            viewModelScope.launch {
+                try {
+                    val client = ensureCouncilApi()
+                    _councilDetail.value = client.getSession(detail.id)
+                } catch (_: Exception) { }
+            }
         }
     }
 
@@ -653,6 +787,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     override fun onCleared() {
         super.onCleared()
         disconnectVillagePulse()
+        disconnectCouncilStream()
         speechService.destroy()
     }
 }

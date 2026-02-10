@@ -1,6 +1,7 @@
 package com.apexaurum.pocket.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,6 +24,7 @@ import com.apexaurum.pocket.ui.theme.*
 fun PulseScreen(
     events: List<VillageEvent>,
     isConnected: Boolean,
+    onCouncilsClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -64,6 +66,20 @@ fun PulseScreen(
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
             )
+            Spacer(Modifier.weight(1f))
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = ElysianViolet.copy(alpha = 0.15f),
+                modifier = Modifier.clickable(onClick = onCouncilsClick),
+            ) {
+                Text(
+                    "Councils",
+                    color = ElysianViolet,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
         }
 
         if (events.isEmpty()) {

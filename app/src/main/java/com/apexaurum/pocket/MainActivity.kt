@@ -7,6 +7,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -32,7 +33,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.apexaurum.pocket.cloud.VillageEvent
+import com.apexaurum.pocket.cloud.*
 import com.apexaurum.pocket.soul.Expression
 import com.apexaurum.pocket.ui.screens.*
 import com.apexaurum.pocket.ui.theme.*
@@ -76,6 +77,12 @@ class MainActivity : ComponentActivity() {
                 val unseenPulseCount by vm.unseenPulseCount.collectAsStateWithLifecycle()
                 val latestTickerEvent by vm.latestTickerEvent.collectAsStateWithLifecycle()
                 val expressionOverride by vm.expressionOverride.collectAsStateWithLifecycle()
+                val councilSessions by vm.councilSessions.collectAsStateWithLifecycle()
+                val councilDetail by vm.councilDetail.collectAsStateWithLifecycle()
+                val councilAgentOutputs by vm.councilAgentOutputs.collectAsStateWithLifecycle()
+                val councilCurrentRound by vm.councilCurrentRound.collectAsStateWithLifecycle()
+                val councilStreaming by vm.councilStreaming.collectAsStateWithLifecycle()
+                val councilButtInSent by vm.councilButtInSent.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
 
                 // Request notification permission on Android 13+
@@ -115,6 +122,12 @@ class MainActivity : ComponentActivity() {
                         unseenPulseCount = unseenPulseCount,
                         latestTickerEvent = latestTickerEvent,
                         expressionOverride = expressionOverride,
+                        councilSessions = councilSessions,
+                        councilDetail = councilDetail,
+                        councilAgentOutputs = councilAgentOutputs,
+                        councilCurrentRound = councilCurrentRound,
+                        councilStreaming = councilStreaming,
+                        councilButtInSent = councilButtInSent,
                         isListening = isListening,
                         isSpeaking = isSpeaking,
                         autoRead = autoRead,
@@ -160,6 +173,12 @@ private fun MainScreen(
     unseenPulseCount: Int,
     latestTickerEvent: VillageEvent?,
     expressionOverride: Expression?,
+    councilSessions: List<CouncilSession>,
+    councilDetail: CouncilSessionDetail?,
+    councilAgentOutputs: Map<String, String>,
+    councilCurrentRound: Int,
+    councilStreaming: Boolean,
+    councilButtInSent: Boolean,
     isListening: Boolean,
     isSpeaking: Boolean,
     autoRead: Boolean,
@@ -168,6 +187,25 @@ private fun MainScreen(
     onVibrate: (VibratePattern) -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
+    var pulseNav by remember { mutableStateOf("events") }
+    var selectedCouncilId by remember { mutableStateOf<String?>(null) }
+
+    // Reset pulse sub-nav when switching away from Pulse tab
+    LaunchedEffect(selectedTab) {
+        if (selectedTab != 3) pulseNav = "events"
+    }
+
+    // Back handler for council sub-navigation
+    BackHandler(selectedTab == 3 && pulseNav != "events") {
+        when (pulseNav) {
+            "council_detail" -> {
+                vm.clearCouncilDetail()
+                pulseNav = "council_list"
+            }
+            else -> pulseNav = "events"
+        }
+    }
+
     val tabs = listOf(
         TabItem("Face", Icons.Default.Face),
         TabItem("Chat", Icons.Default.ChatBubbleOutline),
@@ -286,10 +324,40 @@ private fun MainScreen(
                     onLoadMore = { vm.loadMoreAgora() },
                     onReact = { postId, type -> vm.toggleReaction(postId, type) },
                 )
-                3 -> PulseScreen(
-                    events = villageEvents,
-                    isConnected = villagePulseConnected,
-                )
+                3 -> when (pulseNav) {
+                    "council_list" -> CouncilListScreen(
+                        sessions = councilSessions,
+                        onBack = { pulseNav = "events" },
+                        onSessionClick = { id ->
+                            selectedCouncilId = id
+                            vm.loadCouncilSession(id)
+                            pulseNav = "council_detail"
+                        },
+                        onRefresh = { vm.fetchCouncilSessions() },
+                    )
+                    "council_detail" -> CouncilDetailScreen(
+                        session = councilDetail,
+                        agentOutputs = councilAgentOutputs,
+                        currentRound = councilCurrentRound,
+                        isStreaming = councilStreaming,
+                        buttInSent = councilButtInSent,
+                        onBack = {
+                            vm.clearCouncilDetail()
+                            pulseNav = "council_list"
+                        },
+                        onButtIn = { msg ->
+                            selectedCouncilId?.let { vm.submitButtIn(it, msg) }
+                        },
+                    )
+                    else -> PulseScreen(
+                        events = villageEvents,
+                        isConnected = villagePulseConnected,
+                        onCouncilsClick = {
+                            vm.fetchCouncilSessions()
+                            pulseNav = "council_list"
+                        },
+                    )
+                }
                 4 -> MemoriesScreen(
                     memories = memories,
                     isLoading = memoriesLoading,

@@ -51,6 +51,29 @@ object CloudClient {
             .create(PocketApi::class.java)
     }
 
+    /** JWT-authenticated client for council endpoints. */
+    fun createCouncilClient(jwtToken: String): CouncilApi {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(15, TimeUnit.SECONDS)
+            .addInterceptor { chain ->
+                val request = chain.request().newBuilder()
+                    .addHeader("Authorization", "Bearer $jwtToken")
+                    .addHeader("User-Agent", "ApexPocket-Android/${BuildConfig.VERSION_NAME}")
+                    .build()
+                chain.proceed(request)
+            }
+            .build()
+
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.CLOUD_URL + "/")
+            .client(client)
+            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+            .build()
+            .create(CouncilApi::class.java)
+    }
+
     /** OkHttpClient for SSE streaming — 120s read timeout, no body logging. */
     fun createStreamingClient(token: String): OkHttpClient =
         OkHttpClient.Builder()
