@@ -169,6 +169,16 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private val _musicFavoritesOnly = MutableStateFlow(false)
     val musicFavoritesOnly: StateFlow<Boolean> = _musicFavoritesOnly.asStateFlow()
 
+    // SensorHead Dashboard
+    private val _sensorStatus = MutableStateFlow<SensorStatusResponse?>(null)
+    val sensorStatus: StateFlow<SensorStatusResponse?> = _sensorStatus.asStateFlow()
+    private val _sensorImages = MutableStateFlow<Map<String, String>>(emptyMap())
+    val sensorImages: StateFlow<Map<String, String>> = _sensorImages.asStateFlow()
+    private val _sensorLoading = MutableStateFlow(false)
+    val sensorLoading: StateFlow<Boolean> = _sensorLoading.asStateFlow()
+    private val _sensorCapturing = MutableStateFlow<Set<String>>(emptySet())
+    val sensorCapturing: StateFlow<Set<String>> = _sensorCapturing.asStateFlow()
+
     // Conversation IDs per agent (from DataStore)
     private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -1183,6 +1193,95 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     /** Clear pending voice text after user has reviewed/sent it. */
     fun clearPendingVoiceText() {
         _pendingVoiceText.value = null
+    }
+
+    // ── SensorHead Dashboard ──
+
+    /** Fetch SensorHead connection status + cached telemetry. */
+    fun fetchSensorStatus() {
+        viewModelScope.launch {
+            _sensorLoading.value = true
+            try {
+                val resp = api?.getSensorStatus() ?: return@launch
+                _sensorStatus.value = resp
+            } catch (_: Exception) {
+                // Silent — sensor status is best-effort
+            } finally {
+                _sensorLoading.value = false
+            }
+        }
+    }
+
+    /** Read live environment data from SensorHead. */
+    fun readSensorEnvironment() {
+        viewModelScope.launch {
+            _sensorCapturing.value = _sensorCapturing.value + "environment"
+            try {
+                val resp = api?.readEnvironment() ?: return@launch
+                // Update telemetry in status
+                _sensorStatus.value = _sensorStatus.value?.copy(
+                    telemetry = SensorTelemetry(
+                        readings = resp.data,
+                        timestamp = System.currentTimeMillis() / 1000.0,
+                        ageS = 0f,
+                        source = "live",
+                    )
+                )
+            } catch (_: Exception) {}
+            finally {
+                _sensorCapturing.value = _sensorCapturing.value - "environment"
+            }
+        }
+    }
+
+    /** Capture a camera image (visual, night, or thermal). */
+    fun captureSensorCamera(camera: String) {
+        viewModelScope.launch {
+            _sensorCapturing.value = _sensorCapturing.value + camera
+            try {
+                val resp = if (camera == "thermal") {
+                    api?.captureThermal()
+                } else {
+                    api?.captureCamera(camera)
+                } ?: return@launch
+                resp.imageBase64?.let { img ->
+                    _sensorImages.value = _sensorImages.value + (camera to img)
+                }
+            } catch (_: Exception) {}
+            finally {
+                _sensorCapturing.value = _sensorCapturing.value - camera
+            }
+        }
+    }
+
+    /** Full composite snapshot: environment + all 3 cameras. */
+    fun sensorFullSnapshot() {
+        viewModelScope.launch {
+            _sensorCapturing.value = setOf("environment", "visual", "night", "thermal", "snapshot")
+            try {
+                val resp = api?.sensorSnapshot() ?: return@launch
+                // Update environment
+                resp.environment?.let { env ->
+                    _sensorStatus.value = _sensorStatus.value?.copy(
+                        telemetry = SensorTelemetry(
+                            readings = env,
+                            timestamp = System.currentTimeMillis() / 1000.0,
+                            ageS = 0f,
+                            source = "live",
+                        )
+                    )
+                }
+                // Update images
+                val imgs = _sensorImages.value.toMutableMap()
+                resp.visualBase64?.let { imgs["visual"] = it }
+                resp.nightBase64?.let { imgs["night"] = it }
+                resp.thermalBase64?.let { imgs["thermal"] = it }
+                _sensorImages.value = imgs
+            } catch (_: Exception) {}
+            finally {
+                _sensorCapturing.value = emptySet()
+            }
+        }
     }
 
     // ── Settings actions ──

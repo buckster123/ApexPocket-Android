@@ -22,6 +22,7 @@ import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Forum
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -103,6 +104,10 @@ class MainActivity : ComponentActivity() {
                 val hapticEnabled by vm.hapticEnabled.collectAsStateWithLifecycle()
                 val isOnline by vm.isOnline.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
+                val sensorStatus by vm.sensorStatus.collectAsStateWithLifecycle()
+                val sensorImages by vm.sensorImages.collectAsStateWithLifecycle()
+                val sensorLoading by vm.sensorLoading.collectAsStateWithLifecycle()
+                val sensorCapturing by vm.sensorCapturing.collectAsStateWithLifecycle()
 
                 // Request notification permission on Android 13+
                 if (Build.VERSION.SDK_INT >= 33) {
@@ -176,6 +181,10 @@ class MainActivity : ComponentActivity() {
                         pendingVoiceText = pendingVoiceText,
                         micAvailable = micAvailable,
                         isOnline = isOnline,
+                        sensorStatus = sensorStatus,
+                        sensorImages = sensorImages,
+                        sensorLoading = sensorLoading,
+                        sensorCapturing = sensorCapturing,
                         onVibrate = { pattern -> if (hapticEnabled) vibrate(pattern) },
                     )
                 }
@@ -247,6 +256,10 @@ private fun MainScreen(
     pendingVoiceText: String?,
     micAvailable: Boolean,
     isOnline: Boolean,
+    sensorStatus: com.apexaurum.pocket.cloud.SensorStatusResponse?,
+    sensorImages: Map<String, String>,
+    sensorLoading: Boolean,
+    sensorCapturing: Set<String>,
     onVibrate: (VibratePattern) -> Unit,
 ) {
     var selectedTab by remember {
@@ -256,7 +269,8 @@ private fun MainScreen(
                 "agora" -> 2
                 "pulse", "music", "council_list" -> 3
                 "memories" -> 4
-                "status" -> 5
+                "sensors" -> 5
+                "status" -> 6
                 else -> 0
             }
         )
@@ -301,6 +315,7 @@ private fun MainScreen(
         TabItem("Agora", Icons.Default.Forum),
         TabItem("Pulse", Icons.Default.FavoriteBorder),
         TabItem("Memories", Icons.Default.AutoAwesome),
+        TabItem("Sensors", Icons.Default.Visibility),
         TabItem("Settings", Icons.Default.Info),
     )
 
@@ -512,7 +527,17 @@ private fun MainScreen(
                     onSave = { k, v, t -> vm.saveMemory(k, v, t) },
                     onDelete = { vm.deleteMemory(it) },
                 )
-                5 -> {
+                5 -> SensorsScreen(
+                    status = sensorStatus,
+                    images = sensorImages,
+                    isLoading = sensorLoading,
+                    capturing = sensorCapturing,
+                    onRefreshStatus = { vm.fetchSensorStatus() },
+                    onReadEnvironment = { vm.readSensorEnvironment() },
+                    onCapture = { vm.captureSensorCamera(it) },
+                    onFullSnapshot = { vm.sensorFullSnapshot() },
+                )
+                6 -> {
                     val settingsHaptic by vm.hapticEnabled.collectAsStateWithLifecycle()
                     val notifAgents by vm.notifAgentsEnabled.collectAsStateWithLifecycle()
                     val notifCouncils by vm.notifCouncilsEnabled.collectAsStateWithLifecycle()

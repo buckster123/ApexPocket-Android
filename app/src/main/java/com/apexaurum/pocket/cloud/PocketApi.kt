@@ -82,6 +82,23 @@ interface PocketApi {
 
     @GET("api/v1/pocket/pending-messages")
     suspend fun getPendingMessages(): PendingMessagesResponse
+
+    // ─── SensorHead Dashboard ────────────────────────────────────
+
+    @GET("api/v1/pocket/sensors")
+    suspend fun getSensorStatus(): SensorStatusResponse
+
+    @POST("api/v1/pocket/sensors/environment")
+    suspend fun readEnvironment(): SensorEnvironmentResponse
+
+    @POST("api/v1/pocket/sensors/capture/{camera}")
+    suspend fun captureCamera(@Path("camera") camera: String): SensorCaptureResponse
+
+    @POST("api/v1/pocket/sensors/thermal")
+    suspend fun captureThermal(): SensorCaptureResponse
+
+    @POST("api/v1/pocket/sensors/snapshot")
+    suspend fun sensorSnapshot(): SensorSnapshotResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -380,4 +397,65 @@ data class VillageEvent(
     val error: String? = null,
     val message: String? = null,
     val timestamp: Long = System.currentTimeMillis(),
+)
+
+// ─── SensorHead Models ─────────────────────────────────────────
+
+@Serializable
+data class SensorTelemetryReadings(
+    @SerialName("temperature_c") val temperatureC: Float? = null,
+    @SerialName("humidity_pct") val humidityPct: Float? = null,
+    @SerialName("pressure_hpa") val pressureHpa: Float? = null,
+    @SerialName("co2_ppm") val co2Ppm: Float? = null,
+    val iaq: Float? = null,
+    @SerialName("iaq_accuracy") val iaqAccuracy: Int? = null,
+    @SerialName("voc_ppm") val vocPpm: Float? = null,
+    @SerialName("thermal_min_c") val thermalMinC: Float? = null,
+    @SerialName("thermal_max_c") val thermalMaxC: Float? = null,
+    @SerialName("thermal_avg_c") val thermalAvgC: Float? = null,
+)
+
+@Serializable
+data class SensorTelemetry(
+    val readings: SensorTelemetryReadings? = null,
+    val timestamp: Double? = null,
+    @SerialName("age_s") val ageS: Float? = null,
+    val source: String? = null,
+)
+
+@Serializable
+data class SensorStatusResponse(
+    val online: Boolean = false,
+    @SerialName("device_name") val deviceName: String = "SensorHead",
+    @SerialName("device_id") val deviceId: String? = null,
+    @SerialName("connected_at") val connectedAt: Double? = null,
+    @SerialName("uptime_s") val uptimeS: Float? = null,
+    val telemetry: SensorTelemetry? = null,
+)
+
+@Serializable
+data class SensorEnvironmentResponse(
+    val data: SensorTelemetryReadings? = null,
+    @SerialName("duration_ms") val durationMs: Int = 0,
+    @SerialName("device_name") val deviceName: String = "",
+)
+
+@Serializable
+data class SensorCaptureResponse(
+    @SerialName("image_base64") val imageBase64: String? = null,
+    val camera: String? = null,
+    val sensor: String? = null,
+    @SerialName("duration_ms") val durationMs: Int = 0,
+    @SerialName("device_name") val deviceName: String = "",
+)
+
+@Serializable
+data class SensorSnapshotResponse(
+    val environment: SensorTelemetryReadings? = null,
+    @SerialName("visual_base64") val visualBase64: String? = null,
+    @SerialName("night_base64") val nightBase64: String? = null,
+    @SerialName("thermal_base64") val thermalBase64: String? = null,
+    val errors: List<String> = emptyList(),
+    @SerialName("total_duration_ms") val totalDurationMs: Int = 0,
+    @SerialName("device_name") val deviceName: String = "",
 )
