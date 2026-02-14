@@ -56,6 +56,7 @@ fun MemoriesScreen(
     cortexPendingCount: Int,
     isOnline: Boolean,
     onRememberCortex: (content: String, agentId: String, memoryType: String?) -> Unit,
+    onSyncCortex: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var subNav by remember { mutableStateOf("cortex") }
@@ -150,7 +151,7 @@ fun MemoriesScreen(
                     pendingCount = cortexPendingCount,
                     isOnline = isOnline,
                     onSearch = onSearchCortex,
-                    onRefresh = onFetchCortex,
+                    onRefresh = { onSyncCortex(); onFetchCortex() },
                     onDelete = { deleteCortexTarget = it },
                 )
                 "agent" -> AgentTab(

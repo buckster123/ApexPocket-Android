@@ -601,6 +601,7 @@ private fun MainScreen(
                     onRememberCortex = { content, agentId, memoryType ->
                         vm.rememberCortex(content, agentId, memoryType)
                     },
+                    onSyncCortex = { vm.syncCortexQueue() },
                 )
                 5 -> SensorsScreen(
                     status = sensorStatus,

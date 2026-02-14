@@ -91,7 +91,7 @@ class CortexRepository(private val db: ApexDatabase) {
 
     // ── Remember (create) ──
 
-    /** Store a cortex memory. Online → API + cache. Offline → queue. */
+    /** Store a cortex memory. Online → API + cache. Offline → queue + local placeholder. */
     suspend fun remember(
         api: PocketApi?,
         content: String,
@@ -102,33 +102,51 @@ class CortexRepository(private val db: ApexDatabase) {
         isOnline: Boolean,
     ): String? {
         if (isOnline && api != null) {
-            val resp = api.createCortexMemory(
-                CortexRememberRequest(
-                    content = content,
-                    agentId = agentId,
-                    memoryType = memoryType,
-                    tags = tags,
-                    salience = salience,
+            try {
+                val resp = api.createCortexMemory(
+                    CortexRememberRequest(
+                        content = content,
+                        agentId = agentId,
+                        memoryType = memoryType,
+                        tags = tags,
+                        salience = salience,
+                    )
                 )
-            )
-            return resp.id.ifEmpty { null }
-        } else {
-            // Queue for offline replay
-            val payload = buildMap<String, String> {
-                put("content", content)
-                put("agent_id", agentId)
-                memoryType?.let { put("memory_type", it) }
-                tags?.let { put("tags", it.joinToString(",")) }
-                salience?.let { put("salience", it.toString()) }
+                return resp.id.ifEmpty { null }
+            } catch (e: Exception) {
+                // Network failed despite isOnline — fall through to offline queue
+                android.util.Log.w("CortexRepo", "API call failed, falling back to offline queue: ${e.message}")
             }
-            actionDao.insert(
-                OfflineAction(
-                    actionType = "cortex_remember",
-                    payloadJson = json.encodeToString(payload),
-                )
-            )
-            return null
         }
+        // Queue for offline replay + add local placeholder
+        val payload = buildMap<String, String> {
+            put("content", content)
+            put("agent_id", agentId)
+            memoryType?.let { put("memory_type", it) }
+            tags?.let { put("tags", it.joinToString(",")) }
+            salience?.let { put("salience", it.toString()) }
+        }
+        actionDao.insert(
+            OfflineAction(
+                actionType = "cortex_remember",
+                payloadJson = json.encodeToString(payload),
+            )
+        )
+        // Insert local placeholder so it's visible immediately
+        val placeholderId = "pending_${System.currentTimeMillis()}"
+        cortexDao.insertAll(listOf(
+            CachedCortexMemory(
+                id = placeholderId,
+                content = content,
+                agentId = agentId,
+                layer = "working",
+                memoryType = memoryType ?: "semantic",
+                salience = salience ?: 0.5f,
+                valence = "neutral",
+                tags = tags?.joinToString(",") ?: "",
+            )
+        ))
+        return placeholderId
     }
 
     // ── Delete ──

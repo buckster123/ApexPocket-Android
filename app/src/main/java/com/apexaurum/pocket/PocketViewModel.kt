@@ -468,7 +468,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Create a cortex memory from the app. Online → API. Offline → queued. */
+    /** Create a cortex memory from the app. Online → API. Offline → queued + local placeholder. */
     fun rememberCortex(content: String, agentId: String = "AZOTH", memoryType: String? = null) {
         viewModelScope.launch {
             try {
@@ -480,8 +480,19 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     isOnline = isOnline.value,
                 )
                 refreshCortexMeta()
-                // Refresh list after creating
-                if (isOnline.value) fetchCortexMemories()
+                // Refresh list — from API if online, from cache if offline (shows placeholder)
+                fetchCortexMemories()
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Flush offline cortex queue + refresh cache. Call on manual refresh or reconnect. */
+    fun syncCortexQueue() {
+        viewModelScope.launch {
+            val currentApi = api ?: return@launch
+            try {
+                syncManager.processQueue(currentApi)
+                refreshCortexMeta()
             } catch (_: Exception) { }
         }
     }
