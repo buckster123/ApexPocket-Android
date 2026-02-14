@@ -3,21 +3,23 @@ package com.apexaurum.pocket.sentinel
 import android.app.Notification
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
 import android.util.Base64
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.lifecycle.LifecycleService
-import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import com.apexaurum.pocket.MainActivity
 import com.apexaurum.pocket.R
 import com.apexaurum.pocket.cloud.CloudClient
 import com.apexaurum.pocket.data.SoulRepository
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
@@ -26,8 +28,10 @@ import java.util.concurrent.atomic.AtomicInteger
  * Communicates with UI via companion StateFlows (no binding needed).
  * Starts/stops via Intent actions. Each detection engine calls back
  * on trigger; the service rate-limits and posts alerts to cloud.
+ *
+ * Implements LifecycleOwner so CameraX can bind to our lifecycle.
  */
-class PocketSentinelService : LifecycleService() {
+class PocketSentinelService : Service(), LifecycleOwner {
 
     companion object {
         private const val TAG = "PocketSentinel"
@@ -68,6 +72,11 @@ class PocketSentinelService : LifecycleService() {
         }
     }
 
+    private val lifecycleRegistry = LifecycleRegistry(this)
+    override val lifecycle: Lifecycle get() = lifecycleRegistry
+
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
     private var frameAnalyzer: FrameAnalyzer? = null
     private var soundMonitor: SoundMonitor? = null
     private var motionMonitor: MotionMonitor? = null
@@ -78,9 +87,12 @@ class PocketSentinelService : LifecycleService() {
     private val alertsThisHour = AtomicInteger(0)
     private var hourStart = 0L
 
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        super.onStartCommand(intent, flags, startId)
+    override fun onCreate() {
+        super.onCreate()
+        lifecycleRegistry.currentState = Lifecycle.State.CREATED
+    }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_START -> {
                 config = PocketSentinelConfig(
@@ -105,18 +117,19 @@ class PocketSentinelService : LifecycleService() {
         return START_STICKY
     }
 
-    override fun onBind(intent: Intent): IBinder? {
-        super.onBind(intent)
-        return null
-    }
+    override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         stopSentinel()
+        lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        serviceScope.cancel()
         super.onDestroy()
     }
 
     private fun startSentinel() {
         startForeground(NOTIFICATION_ID, buildNotification("Initializing..."))
+        lifecycleRegistry.currentState = Lifecycle.State.STARTED
+        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
         hourStart = System.currentTimeMillis()
         alertsThisHour.set(0)
 
@@ -202,7 +215,7 @@ class PocketSentinelService : LifecycleService() {
             hourStart = now
         }
         if (alertsThisHour.get() >= config.maxAlertsPerHour) {
-            Log.w(TAG, "Rate limit reached ($config.maxAlertsPerHour/hr)")
+            Log.w(TAG, "Rate limit reached (${config.maxAlertsPerHour}/hr)")
             return
         }
 
@@ -224,7 +237,7 @@ class PocketSentinelService : LifecycleService() {
         updateNotification("Alert: $detail")
 
         // Post to cloud
-        lifecycleScope.launch {
+        serviceScope.launch {
             postAlertToCloud(event)
         }
     }
@@ -256,12 +269,12 @@ class PocketSentinelService : LifecycleService() {
     }
 
     private fun buildNotification(text: String): Notification {
-        val intent = Intent(this, MainActivity::class.java).apply {
+        val tapIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
             putExtra("tab", "sensors")
         }
         val pendingIntent = PendingIntent.getActivity(
-            this, NOTIFICATION_ID, intent,
+            this, NOTIFICATION_ID, tapIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
