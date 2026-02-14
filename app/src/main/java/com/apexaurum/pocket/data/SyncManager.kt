@@ -2,6 +2,7 @@ package com.apexaurum.pocket.data
 
 import android.util.Log
 import com.apexaurum.pocket.cloud.CareRequest
+import com.apexaurum.pocket.cloud.CortexRememberRequest
 import com.apexaurum.pocket.cloud.PocketApi
 import com.apexaurum.pocket.cloud.SaveMemoryRequest
 import com.apexaurum.pocket.data.db.ApexDatabase
@@ -41,6 +42,8 @@ class SyncManager(private val db: ApexDatabase) {
                     "care" -> replayCare(api, action.payloadJson)
                     "memory_save" -> replayMemorySave(api, action.payloadJson)
                     "memory_delete" -> replayMemoryDelete(api, action.payloadJson)
+                    "cortex_remember" -> replayCortexRemember(api, action.payloadJson)
+                    "cortex_delete" -> replayCortexDelete(api, action.payloadJson)
                     else -> Log.w(TAG, "Unknown action type: ${action.actionType}")
                 }
                 // Success — remove from queue
@@ -82,5 +85,30 @@ class SyncManager(private val db: ApexDatabase) {
         val obj = json.parseToJsonElement(payloadJson).jsonObject
         val id = obj["memory_id"]?.jsonPrimitive?.content ?: return
         api.deleteMemory(id)
+    }
+
+    private suspend fun replayCortexRemember(api: PocketApi, payloadJson: String) {
+        val obj = json.parseToJsonElement(payloadJson).jsonObject
+        val content = obj["content"]?.jsonPrimitive?.content ?: return
+        val agentId = obj["agent_id"]?.jsonPrimitive?.content ?: "AZOTH"
+        val memoryType = obj["memory_type"]?.jsonPrimitive?.content
+        val tagsRaw = obj["tags"]?.jsonPrimitive?.content
+        val tags = tagsRaw?.split(",")?.filter { it.isNotBlank() }
+        val salience = obj["salience"]?.jsonPrimitive?.content?.toFloatOrNull()
+        api.createCortexMemory(
+            CortexRememberRequest(
+                content = content,
+                agentId = agentId,
+                memoryType = memoryType,
+                tags = tags,
+                salience = salience,
+            )
+        )
+    }
+
+    private suspend fun replayCortexDelete(api: PocketApi, payloadJson: String) {
+        val obj = json.parseToJsonElement(payloadJson).jsonObject
+        val id = obj["memory_id"]?.jsonPrimitive?.content ?: return
+        api.deleteCortexMemory(id)
     }
 }

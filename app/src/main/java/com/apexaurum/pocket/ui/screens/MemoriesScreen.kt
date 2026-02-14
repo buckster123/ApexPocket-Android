@@ -51,10 +51,16 @@ fun MemoriesScreen(
     onFetchCortexStats: () -> Unit,
     onFetchDreamStatus: () -> Unit,
     onTriggerDream: () -> Unit,
+    // Offline sync
+    cortexCacheAgeMs: Long?,
+    cortexPendingCount: Int,
+    isOnline: Boolean,
+    onRememberCortex: (content: String, agentId: String, memoryType: String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var subNav by remember { mutableStateOf("cortex") }
     var showAddDialog by remember { mutableStateOf(false) }
+    var showRememberDialog by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<AgentMemoryItem?>(null) }
     var deleteCortexTarget by remember { mutableStateOf<CortexMemoryNode?>(null) }
 
@@ -68,13 +74,20 @@ fun MemoriesScreen(
     Scaffold(
         containerColor = ApexBlack,
         floatingActionButton = {
-            if (subNav == "agent") {
-                FloatingActionButton(
+            when (subNav) {
+                "agent" -> FloatingActionButton(
                     onClick = { showAddDialog = true },
                     containerColor = Gold,
                     contentColor = ApexBlack,
                 ) {
                     Icon(Icons.Default.Add, contentDescription = "Add Memory")
+                }
+                "cortex" -> FloatingActionButton(
+                    onClick = { showRememberDialog = true },
+                    containerColor = ElysianViolet,
+                    contentColor = ApexBlack,
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = "Remember")
                 }
             }
         },
@@ -95,7 +108,18 @@ fun MemoriesScreen(
                         selected = subNav == key,
                         onClick = { subNav = key },
                         label = {
-                            Text(label, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(label, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                                if (key == "cortex" && cortexPendingCount > 0) {
+                                    Spacer(Modifier.width(4.dp))
+                                    Badge(
+                                        containerColor = ElysianViolet,
+                                        contentColor = ApexBlack,
+                                    ) {
+                                        Text("$cortexPendingCount", fontSize = 9.sp)
+                                    }
+                                }
+                            }
                         },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Gold.copy(alpha = 0.2f),
@@ -122,6 +146,9 @@ fun MemoriesScreen(
                     isLoading = cortexLoading,
                     searchQuery = cortexSearchQuery,
                     stats = cortexStats,
+                    cacheAgeMs = cortexCacheAgeMs,
+                    pendingCount = cortexPendingCount,
+                    isOnline = isOnline,
                     onSearch = onSearchCortex,
                     onRefresh = onFetchCortex,
                     onDelete = { deleteCortexTarget = it },
@@ -149,6 +176,17 @@ fun MemoriesScreen(
             onSave = { key, value, type ->
                 onSave(key, value, type)
                 showAddDialog = false
+            },
+        )
+    }
+
+    // Remember Dialog (cortex tab)
+    if (showRememberDialog) {
+        RememberCortexDialog(
+            onDismiss = { showRememberDialog = false },
+            onRemember = { content, agentId, memoryType ->
+                onRememberCortex(content, agentId, memoryType)
+                showRememberDialog = false
             },
         )
     }
@@ -216,6 +254,9 @@ private fun CortexTab(
     isLoading: Boolean,
     searchQuery: String,
     stats: CortexStatsResponse?,
+    cacheAgeMs: Long?,
+    pendingCount: Int,
+    isOnline: Boolean,
     onSearch: (String) -> Unit,
     onRefresh: () -> Unit,
     onDelete: (CortexMemoryNode) -> Unit,
@@ -224,6 +265,44 @@ private fun CortexTab(
     var localQuery by remember { mutableStateOf(searchQuery) }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // Sync status bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // Cache freshness
+            Text(
+                when {
+                    cacheAgeMs == null -> "not synced"
+                    cacheAgeMs < 60_000 -> "synced just now"
+                    cacheAgeMs < 3_600_000 -> "synced ${cacheAgeMs / 60_000}m ago"
+                    else -> "synced ${cacheAgeMs / 3_600_000}h ago"
+                },
+                color = if (cacheAgeMs != null && cacheAgeMs < 300_000) TextMuted else Gold.copy(alpha = 0.6f),
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (pendingCount > 0) {
+                    Text(
+                        "$pendingCount queued",
+                        color = ElysianViolet,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+                Text(
+                    if (isOnline) "\u25CF online" else "\u25CB offline",
+                    color = if (isOnline) AzothGold else TextMuted,
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+
         // Stats bar
         stats?.let { s ->
             Row(
@@ -776,6 +855,85 @@ private fun AddMemoryDialog(
                 enabled = key.isNotBlank() && value.isNotBlank(),
                 colors = ButtonDefaults.textButtonColors(contentColor = Gold),
             ) { Text("Save", fontFamily = FontFamily.Monospace) }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(contentColor = TextMuted),
+            ) { Text("Cancel", fontFamily = FontFamily.Monospace) }
+        },
+    )
+}
+
+// ─── Remember Cortex Dialog ─────────────────────────────────────────
+
+@Composable
+private fun RememberCortexDialog(
+    onDismiss: () -> Unit,
+    onRemember: (content: String, agentId: String, memoryType: String?) -> Unit,
+) {
+    val agents = listOf("AZOTH", "KETHER", "VAJRA", "ELYSIAN")
+    var selectedAgent by remember { mutableStateOf("AZOTH") }
+    var content by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = ApexSurface,
+        titleContentColor = ElysianViolet,
+        title = { Text("Remember", fontFamily = FontFamily.Monospace) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Store a memory in the CerebroCortex. Type and salience are auto-classified.",
+                    color = TextMuted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                    lineHeight = 14.sp,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    agents.forEach { agent ->
+                        FilterChip(
+                            selected = selectedAgent == agent,
+                            onClick = { selectedAgent = agent },
+                            label = {
+                                Text(
+                                    agent.take(3),
+                                    fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = agentColor(agent).copy(alpha = 0.2f),
+                                selectedLabelColor = agentColor(agent),
+                                containerColor = ApexBlack,
+                                labelColor = TextMuted,
+                            ),
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = content, onValueChange = { content = it },
+                    placeholder = {
+                        Text(
+                            "What should be remembered...",
+                            fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                        )
+                    },
+                    minLines = 3,
+                    maxLines = 6,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = ElysianViolet, unfocusedBorderColor = ApexBorder,
+                        cursorColor = ElysianViolet, focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        focusedPlaceholderColor = TextMuted, unfocusedPlaceholderColor = TextMuted,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (content.isNotBlank()) onRemember(content, selectedAgent, null) },
+                enabled = content.isNotBlank(),
+                colors = ButtonDefaults.textButtonColors(contentColor = ElysianViolet),
+            ) { Text("Remember", fontFamily = FontFamily.Monospace) }
         },
         dismissButton = {
             TextButton(

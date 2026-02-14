@@ -109,7 +109,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val memoriesLoading: StateFlow<Boolean> = _memoriesLoading.asStateFlow()
 
     // CerebroCortex
-    private val cortexDao = db.cortexDao()
+    private val cortexRepo = CortexRepository(db)
     private val _cortexMemories = MutableStateFlow<List<CortexMemoryNode>>(emptyList())
     val cortexMemories: StateFlow<List<CortexMemoryNode>> = _cortexMemories.asStateFlow()
     private val _cortexLoading = MutableStateFlow(false)
@@ -122,6 +122,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val dreamStatus: StateFlow<DreamStatusResponse?> = _dreamStatus.asStateFlow()
     private val _dreamTriggering = MutableStateFlow(false)
     val dreamTriggering: StateFlow<Boolean> = _dreamTriggering.asStateFlow()
+    private val _cortexCacheAgeMs = MutableStateFlow<Long?>(null)
+    val cortexCacheAgeMs: StateFlow<Long?> = _cortexCacheAgeMs.asStateFlow()
+    private val _cortexPendingCount = MutableStateFlow(0)
+    val cortexPendingCount: StateFlow<Int> = _cortexPendingCount.asStateFlow()
 
     // Agora feed
     private val _agoraPosts = MutableStateFlow<List<AgoraPostItem>>(emptyList())
@@ -413,45 +417,19 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
 
     // ── CerebroCortex ──
 
-    /** Fetch cortex memories from cloud. Caches to Room. */
+    /** Fetch cortex memories. Online → API + cache. Offline → Room cache. */
     fun fetchCortexMemories(layer: String? = null, agentId: String? = null, memoryType: String? = null) {
         viewModelScope.launch {
             _cortexLoading.value = true
             try {
                 val currentApi = api
                 if (currentApi != null && isOnline.value) {
-                    val nodes = currentApi.getCortexMemories(
-                        layer = layer, agentId = agentId, memoryType = memoryType,
-                    )
+                    val nodes = cortexRepo.refreshFromApi(currentApi, layer, agentId, memoryType)
                     _cortexMemories.value = nodes
-                    // Cache to Room
-                    cortexDao.clearAll()
-                    cortexDao.insertAll(nodes.map { n ->
-                        com.apexaurum.pocket.data.db.CachedCortexMemory(
-                            id = n.id, content = n.content, agentId = n.agentId,
-                            layer = n.layer, memoryType = n.memoryType,
-                            salience = n.salience, valence = n.valence,
-                            accessCount = n.accessCount, tags = n.tags.joinToString(","),
-                            concepts = n.concepts.joinToString(","),
-                            linkCount = n.linkCount, createdAt = n.createdAt,
-                        )
-                    })
                 } else {
-                    // Offline — load from Room cache
-                    cortexDao.getAll().first().let { cached ->
-                        _cortexMemories.value = cached.map { c ->
-                            CortexMemoryNode(
-                                id = c.id, content = c.content, agentId = c.agentId,
-                                layer = c.layer, memoryType = c.memoryType,
-                                salience = c.salience, valence = c.valence,
-                                accessCount = c.accessCount,
-                                tags = c.tags.split(",").filter { it.isNotBlank() },
-                                concepts = c.concepts.split(",").filter { it.isNotBlank() },
-                                linkCount = c.linkCount, createdAt = c.createdAt,
-                            )
-                        }
-                    }
+                    cortexRepo.allCached().first().let { _cortexMemories.value = it }
                 }
+                refreshCortexMeta()
             } catch (_: Exception) { }
             finally { _cortexLoading.value = false }
         }
@@ -477,17 +455,41 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    /** Delete a cortex memory. */
+    /** Delete a cortex memory. Optimistic local + queue if offline. */
     fun deleteCortexMemory(memoryId: String) {
         viewModelScope.launch {
             _cortexMemories.value = _cortexMemories.value.filter { it.id != memoryId }
             try {
-                api?.deleteCortexMemory(memoryId)
-                cortexDao.deleteById(memoryId)
+                cortexRepo.delete(api, memoryId, isOnline.value)
+                refreshCortexMeta()
             } catch (_: Exception) {
                 fetchCortexMemories()
             }
         }
+    }
+
+    /** Create a cortex memory from the app. Online → API. Offline → queued. */
+    fun rememberCortex(content: String, agentId: String = "AZOTH", memoryType: String? = null) {
+        viewModelScope.launch {
+            try {
+                cortexRepo.remember(
+                    api = api,
+                    content = content,
+                    agentId = agentId,
+                    memoryType = memoryType,
+                    isOnline = isOnline.value,
+                )
+                refreshCortexMeta()
+                // Refresh list after creating
+                if (isOnline.value) fetchCortexMemories()
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Refresh cache age + pending action count. */
+    private suspend fun refreshCortexMeta() {
+        _cortexCacheAgeMs.value = cortexRepo.cacheAgeMs()
+        _cortexPendingCount.value = cortexRepo.pendingActionCount()
     }
 
     /** Fetch cortex stats. */

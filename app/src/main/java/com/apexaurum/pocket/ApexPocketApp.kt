@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.work.*
+import com.apexaurum.pocket.data.CortexSyncWorker
 import com.apexaurum.pocket.sentinel.PocketSentinelService
 import com.apexaurum.pocket.widget.NotificationWorker
 import com.apexaurum.pocket.widget.WidgetUpdateWorker
@@ -79,6 +80,15 @@ class ApexPocketApp : Application() {
             "pocket_notifications",
             ExistingPeriodicWorkPolicy.KEEP,
             PeriodicWorkRequestBuilder<NotificationWorker>(
+                15, TimeUnit.MINUTES,
+            ).setConstraints(networkConstraints).build(),
+        )
+
+        // Cortex memory sync worker (every 15 min — cache refresh + offline queue)
+        wm.enqueueUniquePeriodicWork(
+            "cortex_sync",
+            ExistingPeriodicWorkPolicy.KEEP,
+            PeriodicWorkRequestBuilder<CortexSyncWorker>(
                 15, TimeUnit.MINUTES,
             ).setConstraints(networkConstraints).build(),
         )

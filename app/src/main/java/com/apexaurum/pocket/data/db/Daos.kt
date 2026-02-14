@@ -76,6 +76,12 @@ interface CortexDao {
 
     @Query("DELETE FROM cached_cortex_memories")
     suspend fun clearAll()
+
+    @Query("SELECT MIN(cachedAt) FROM cached_cortex_memories")
+    suspend fun getLastSyncTime(): Long?
+
+    @Query("SELECT COUNT(*) FROM cached_cortex_memories")
+    suspend fun count(): Int
 }
 
 @Dao

@@ -146,6 +146,11 @@ interface PocketApi {
         @Query("offset") offset: Int = 0,
     ): List<CortexMemoryNode>
 
+    @POST("api/v1/pocket/cortex/memories")
+    suspend fun createCortexMemory(
+        @Body request: CortexRememberRequest,
+    ): CortexRememberResponse
+
     @POST("api/v1/pocket/cortex/search")
     suspend fun searchCortexMemories(
         @Body request: CortexSearchRequest,
@@ -673,6 +678,24 @@ data class CortexStatsResponse(
     @SerialName("by_memory_type") val byMemoryType: Map<String, Int> = emptyMap(),
     val links: Int = 0,
     val episodes: Int = 0,
+)
+
+@Serializable
+data class CortexRememberRequest(
+    val content: String,
+    @SerialName("agent_id") val agentId: String = "AZOTH",
+    @SerialName("memory_type") val memoryType: String? = null,
+    val tags: List<String>? = null,
+    val salience: Float? = null,
+)
+
+@Serializable
+data class CortexRememberResponse(
+    val status: String = "",
+    val id: String = "",
+    @SerialName("memory_type") val memoryType: String = "semantic",
+    val salience: Float = 0.5f,
+    val message: String = "",
 )
 
 @Serializable

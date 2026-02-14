@@ -83,6 +83,8 @@ class MainActivity : ComponentActivity() {
                 val cortexStats by vm.cortexStats.collectAsStateWithLifecycle()
                 val dreamStatus by vm.dreamStatus.collectAsStateWithLifecycle()
                 val dreamTriggering by vm.dreamTriggering.collectAsStateWithLifecycle()
+                val cortexCacheAgeMs by vm.cortexCacheAgeMs.collectAsStateWithLifecycle()
+                val cortexPendingCount by vm.cortexPendingCount.collectAsStateWithLifecycle()
                 val agoraPosts by vm.agoraPosts.collectAsStateWithLifecycle()
                 val agoraLoading by vm.agoraLoading.collectAsStateWithLifecycle()
                 val villageEvents by vm.villageEvents.collectAsStateWithLifecycle()
@@ -176,6 +178,8 @@ class MainActivity : ComponentActivity() {
                         cortexStats = cortexStats,
                         dreamStatus = dreamStatus,
                         dreamTriggering = dreamTriggering,
+                        cortexCacheAgeMs = cortexCacheAgeMs,
+                        cortexPendingCount = cortexPendingCount,
                         agoraPosts = agoraPosts,
                         agoraLoading = agoraLoading,
                         villageEvents = villageEvents,
@@ -267,6 +271,8 @@ private fun MainScreen(
     cortexStats: com.apexaurum.pocket.cloud.CortexStatsResponse?,
     dreamStatus: com.apexaurum.pocket.cloud.DreamStatusResponse?,
     dreamTriggering: Boolean,
+    cortexCacheAgeMs: Long?,
+    cortexPendingCount: Int,
     agoraPosts: List<com.apexaurum.pocket.cloud.AgoraPostItem>,
     agoraLoading: Boolean,
     villageEvents: List<VillageEvent>,
@@ -589,6 +595,12 @@ private fun MainScreen(
                     onFetchCortexStats = { vm.fetchCortexStats() },
                     onFetchDreamStatus = { vm.fetchDreamStatus() },
                     onTriggerDream = { vm.triggerDream() },
+                    cortexCacheAgeMs = cortexCacheAgeMs,
+                    cortexPendingCount = cortexPendingCount,
+                    isOnline = isOnline,
+                    onRememberCortex = { content, agentId, memoryType ->
+                        vm.rememberCortex(content, agentId, memoryType)
+                    },
                 )
                 5 -> SensorsScreen(
                     status = sensorStatus,
