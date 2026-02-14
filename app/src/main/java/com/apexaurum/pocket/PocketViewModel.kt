@@ -236,6 +236,12 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private val _pendingVoiceText = MutableStateFlow<String?>(null)
     val pendingVoiceText: StateFlow<String?> = _pendingVoiceText.asStateFlow()
 
+    // --- Voice Memory ---
+    private val _isVoiceMemoryActive = MutableStateFlow(false)
+    val isVoiceMemoryActive: StateFlow<Boolean> = _isVoiceMemoryActive.asStateFlow()
+    private val _voiceMemoryFeedback = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    val voiceMemoryFeedback: SharedFlow<String> = _voiceMemoryFeedback.asSharedFlow()
+
     val autoRead: StateFlow<Boolean> = repo.autoReadFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
@@ -271,10 +277,28 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
 
-        // Collect recognized text from STT → set as pending voice text
+        // Collect recognized text from STT — route to voice memory or chat input
         viewModelScope.launch {
             speechService.recognizedText.collect { text ->
-                _pendingVoiceText.value = text
+                if (_isVoiceMemoryActive.value) {
+                    _isVoiceMemoryActive.value = false
+                    voiceMemoryCommand(text)
+                } else {
+                    _pendingVoiceText.value = text
+                }
+            }
+        }
+
+        // Auto-reset voice memory mode if STT stops without producing text
+        viewModelScope.launch {
+            speechService.isListening.collect { listening ->
+                if (!listening && _isVoiceMemoryActive.value) {
+                    delay(500) // allow recognizedText to emit first
+                    if (_isVoiceMemoryActive.value) {
+                        _isVoiceMemoryActive.value = false
+                        _voiceMemoryFeedback.tryEmit("Voice not recognized. Try again.")
+                    }
+                }
             }
         }
 
@@ -1379,6 +1403,131 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     /** Clear pending voice text after user has reviewed/sent it. */
     fun clearPendingVoiceText() {
         _pendingVoiceText.value = null
+    }
+
+    // --- Voice Memory ---
+
+    /** Start voice memory mode: tap mic → speak → auto-remember or recall. */
+    fun startVoiceMemory() {
+        speechService.stopSpeaking()
+        if (speechService.isListening.value) speechService.stopListening()
+        _isVoiceMemoryActive.value = true
+        speechService.startListening()
+    }
+
+    /** Cancel voice memory listening. */
+    fun stopVoiceMemory() {
+        _isVoiceMemoryActive.value = false
+        speechService.stopListening()
+    }
+
+    private enum class VoiceMemoryIntent { REMEMBER, RECALL }
+
+    /** Classify spoken text and dispatch to remember or recall. */
+    private fun voiceMemoryCommand(text: String) {
+        val (intent, content) = classifyVoiceIntent(text)
+        when (intent) {
+            VoiceMemoryIntent.REMEMBER -> voiceRemember(content)
+            VoiceMemoryIntent.RECALL -> voiceRecall(content)
+        }
+    }
+
+    /** Keyword-based intent classification — strips command prefix. */
+    private fun classifyVoiceIntent(raw: String): Pair<VoiceMemoryIntent, String> {
+        val text = raw.trim()
+        val lower = text.lowercase()
+
+        val recallPrefixes = listOf(
+            "what do you know about ", "what do you remember about ",
+            "tell me about ", "do you remember ",
+            "recall ", "search ", "find ", "look up ", "look for ",
+        )
+        for (prefix in recallPrefixes) {
+            if (lower.startsWith(prefix)) {
+                return VoiceMemoryIntent.RECALL to text.drop(prefix.length).trim()
+            }
+        }
+
+        val rememberPrefixes = listOf(
+            "remember that ", "remember ", "memorize ",
+            "keep in mind ", "note that ", "note ",
+            "store ", "save ",
+        )
+        for (prefix in rememberPrefixes) {
+            if (lower.startsWith(prefix)) {
+                return VoiceMemoryIntent.REMEMBER to text.drop(prefix.length).trim()
+            }
+        }
+
+        return VoiceMemoryIntent.REMEMBER to text
+    }
+
+    /** Store spoken content as a cortex memory + TTS confirmation. */
+    private fun voiceRemember(content: String) {
+        if (content.isBlank()) {
+            _voiceMemoryFeedback.tryEmit("Nothing to remember.")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val agentId = soul.value.selectedAgentId
+                cortexRepo.remember(
+                    api = api, content = content, agentId = agentId,
+                    isOnline = isOnline.value,
+                )
+                refreshCortexMeta()
+                fetchCortexMemories()
+                speechService.speak("Remembered.", agentId)
+                _voiceMemoryFeedback.tryEmit("Remembered: \"${content.take(50)}\"")
+            } catch (_: Exception) {
+                speechService.speak("Failed to remember.", soul.value.selectedAgentId)
+                _voiceMemoryFeedback.tryEmit("Failed to save memory.")
+            }
+        }
+    }
+
+    /** Search cortex memories by voice query + TTS the top result. */
+    private fun voiceRecall(query: String) {
+        if (query.isBlank()) {
+            _voiceMemoryFeedback.tryEmit("Nothing to search for.")
+            return
+        }
+        viewModelScope.launch {
+            try {
+                val agentId = soul.value.selectedAgentId
+                val currentApi = api
+                if (currentApi != null && isOnline.value) {
+                    val results = currentApi.searchCortexMemories(
+                        CortexSearchRequest(query = query, limit = 5)
+                    )
+                    _cortexMemories.value = results
+                    _cortexSearchQuery.value = query
+                    if (results.isNotEmpty()) {
+                        speechService.speak(results.first().content.take(300), agentId)
+                        _voiceMemoryFeedback.tryEmit("Found ${results.size} result(s).")
+                    } else {
+                        speechService.speak("No memories found for $query.", agentId)
+                        _voiceMemoryFeedback.tryEmit("No results for \"$query\".")
+                    }
+                } else {
+                    // Offline: simple text match on local cache
+                    val cached = cortexRepo.allCached().first()
+                    val filtered = cached.filter { it.content.contains(query, ignoreCase = true) }
+                    _cortexMemories.value = filtered
+                    _cortexSearchQuery.value = query
+                    if (filtered.isNotEmpty()) {
+                        speechService.speak(filtered.first().content.take(300), agentId)
+                        _voiceMemoryFeedback.tryEmit("Found ${filtered.size} cached result(s).")
+                    } else {
+                        speechService.speak("No cached memories match $query.", agentId)
+                        _voiceMemoryFeedback.tryEmit("No offline results for \"$query\".")
+                    }
+                }
+            } catch (_: Exception) {
+                speechService.speak("Search failed.", soul.value.selectedAgentId)
+                _voiceMemoryFeedback.tryEmit("Search failed.")
+            }
+        }
     }
 
     // ── SensorHead Dashboard ──

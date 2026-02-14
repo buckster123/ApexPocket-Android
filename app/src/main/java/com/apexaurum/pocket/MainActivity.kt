@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
                 val musicDownloads by vm.musicDownloader.downloads.collectAsStateWithLifecycle()
                 val hapticEnabled by vm.hapticEnabled.collectAsStateWithLifecycle()
                 val isOnline by vm.isOnline.collectAsStateWithLifecycle()
+                val isVoiceMemoryActive by vm.isVoiceMemoryActive.collectAsStateWithLifecycle()
                 val micAvailable = remember { vm.speechService.isRecognitionAvailable() }
                 val sensorStatus by vm.sensorStatus.collectAsStateWithLifecycle()
                 val sensorImages by vm.sensorImages.collectAsStateWithLifecycle()
@@ -209,6 +210,7 @@ class MainActivity : ComponentActivity() {
                         autoRead = autoRead,
                         pendingVoiceText = pendingVoiceText,
                         micAvailable = micAvailable,
+                        isVoiceMemoryActive = isVoiceMemoryActive,
                         isOnline = isOnline,
                         sensorStatus = sensorStatus,
                         sensorImages = sensorImages,
@@ -302,6 +304,7 @@ private fun MainScreen(
     autoRead: Boolean,
     pendingVoiceText: String?,
     micAvailable: Boolean,
+    isVoiceMemoryActive: Boolean = false,
     isOnline: Boolean,
     sensorStatus: com.apexaurum.pocket.cloud.SensorStatusResponse?,
     sensorImages: Map<String, String>,
@@ -602,6 +605,16 @@ private fun MainScreen(
                         vm.rememberCortex(content, agentId, memoryType)
                     },
                     onSyncCortex = { vm.syncCortexQueue() },
+                    // Voice memory
+                    isVoiceMemoryActive = isVoiceMemoryActive,
+                    isListening = isListening,
+                    micAvailable = micAvailable,
+                    onStartVoiceMemory = { vm.startVoiceMemory() },
+                    onStopVoiceMemory = { vm.stopVoiceMemory() },
+                    voiceMemoryFeedback = vm.voiceMemoryFeedback,
+                    pendingVoiceText = pendingVoiceText,
+                    onToggleListening = { vm.toggleListening() },
+                    onClearPendingVoice = { vm.clearPendingVoiceText() },
                 )
                 5 -> SensorsScreen(
                     status = sensorStatus,

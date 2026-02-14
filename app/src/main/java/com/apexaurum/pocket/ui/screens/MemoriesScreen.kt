@@ -1,5 +1,8 @@
 package com.apexaurum.pocket.ui.screens
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
@@ -11,6 +14,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -27,7 +32,10 @@ import com.apexaurum.pocket.cloud.AgentMemoryItem
 import com.apexaurum.pocket.cloud.CortexMemoryNode
 import com.apexaurum.pocket.cloud.CortexStatsResponse
 import com.apexaurum.pocket.cloud.DreamStatusResponse
+import com.apexaurum.pocket.ui.components.ListeningIndicator
 import com.apexaurum.pocket.ui.theme.*
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -57,6 +65,17 @@ fun MemoriesScreen(
     isOnline: Boolean,
     onRememberCortex: (content: String, agentId: String, memoryType: String?) -> Unit,
     onSyncCortex: () -> Unit,
+    // Voice memory
+    isVoiceMemoryActive: Boolean = false,
+    isListening: Boolean = false,
+    micAvailable: Boolean = true,
+    onStartVoiceMemory: () -> Unit = {},
+    onStopVoiceMemory: () -> Unit = {},
+    voiceMemoryFeedback: SharedFlow<String>? = null,
+    // Dialog voice fill
+    pendingVoiceText: String? = null,
+    onToggleListening: () -> Unit = {},
+    onClearPendingVoice: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     var subNav by remember { mutableStateOf("cortex") }
@@ -64,6 +83,24 @@ fun MemoriesScreen(
     var showRememberDialog by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<AgentMemoryItem?>(null) }
     var deleteCortexTarget by remember { mutableStateOf<CortexMemoryNode?>(null) }
+
+    // Audio permission for voice memory
+    var hasAudioPermission by remember { mutableStateOf(false) }
+    val audioPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasAudioPermission = granted
+        if (granted) onStartVoiceMemory()
+    }
+
+    // Snackbar for voice memory feedback
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        voiceMemoryFeedback?.collect { message ->
+            snackbarHostState.showSnackbar(message)
+        }
+    }
 
     // Auto-fetch on first composition
     LaunchedEffect(Unit) {
@@ -74,6 +111,15 @@ fun MemoriesScreen(
 
     Scaffold(
         containerColor = ApexBlack,
+        snackbarHost = {
+            SnackbarHost(snackbarHostState) { data ->
+                Snackbar(
+                    snackbarData = data,
+                    containerColor = ApexSurface,
+                    contentColor = Gold,
+                )
+            }
+        },
         floatingActionButton = {
             when (subNav) {
                 "agent" -> FloatingActionButton(
@@ -153,6 +199,14 @@ fun MemoriesScreen(
                     onSearch = onSearchCortex,
                     onRefresh = { onSyncCortex(); onFetchCortex() },
                     onDelete = { deleteCortexTarget = it },
+                    isVoiceMemoryActive = isVoiceMemoryActive,
+                    isListening = isListening,
+                    micAvailable = micAvailable,
+                    onStartVoiceMemory = {
+                        if (hasAudioPermission) onStartVoiceMemory()
+                        else audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    },
+                    onStopVoiceMemory = onStopVoiceMemory,
                 )
                 "agent" -> AgentTab(
                     memories = memories,
@@ -184,11 +238,22 @@ fun MemoriesScreen(
     // Remember Dialog (cortex tab)
     if (showRememberDialog) {
         RememberCortexDialog(
-            onDismiss = { showRememberDialog = false },
+            onDismiss = {
+                showRememberDialog = false
+                if (isListening) onToggleListening()
+            },
             onRemember = { content, agentId, memoryType ->
                 onRememberCortex(content, agentId, memoryType)
                 showRememberDialog = false
             },
+            isListening = isListening,
+            pendingVoiceText = pendingVoiceText,
+            micAvailable = micAvailable,
+            onToggleListening = {
+                if (hasAudioPermission) onToggleListening()
+                else audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            },
+            onClearPendingVoice = onClearPendingVoice,
         )
     }
 
@@ -261,6 +326,12 @@ private fun CortexTab(
     onSearch: (String) -> Unit,
     onRefresh: () -> Unit,
     onDelete: (CortexMemoryNode) -> Unit,
+    // Voice memory
+    isVoiceMemoryActive: Boolean = false,
+    isListening: Boolean = false,
+    micAvailable: Boolean = true,
+    onStartVoiceMemory: () -> Unit = {},
+    onStopVoiceMemory: () -> Unit = {},
 ) {
     val focusManager = LocalFocusManager.current
     var localQuery by remember { mutableStateOf(searchQuery) }
@@ -317,31 +388,60 @@ private fun CortexTab(
             Spacer(Modifier.height(8.dp))
         }
 
-        // Search bar
-        OutlinedTextField(
-            value = localQuery,
-            onValueChange = { localQuery = it },
-            placeholder = {
-                Text("search memories...", fontFamily = FontFamily.Monospace, fontSize = 13.sp)
-            },
-            leadingIcon = { Icon(Icons.Default.Search, null, tint = TextMuted) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = {
-                onSearch(localQuery)
-                focusManager.clearFocus()
-            }),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = Gold,
-                unfocusedBorderColor = ApexBorder,
-                cursorColor = Gold,
-                focusedTextColor = TextPrimary,
-                unfocusedTextColor = TextPrimary,
-                focusedPlaceholderColor = TextMuted,
-                unfocusedPlaceholderColor = TextMuted,
-            ),
+        // Search bar + voice mic
+        Row(
             modifier = Modifier.fillMaxWidth(),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = localQuery,
+                onValueChange = { localQuery = it },
+                placeholder = {
+                    Text("search memories...", fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+                },
+                leadingIcon = { Icon(Icons.Default.Search, null, tint = TextMuted) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = {
+                    onSearch(localQuery)
+                    focusManager.clearFocus()
+                }),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Gold,
+                    unfocusedBorderColor = ApexBorder,
+                    cursorColor = Gold,
+                    focusedTextColor = TextPrimary,
+                    unfocusedTextColor = TextPrimary,
+                    focusedPlaceholderColor = TextMuted,
+                    unfocusedPlaceholderColor = TextMuted,
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            if (micAvailable) {
+                Spacer(Modifier.width(8.dp))
+                IconButton(
+                    onClick = {
+                        if (isListening && isVoiceMemoryActive) onStopVoiceMemory()
+                        else onStartVoiceMemory()
+                    },
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Icon(
+                        imageVector = if (isListening && isVoiceMemoryActive)
+                            Icons.Default.Stop else Icons.Default.Mic,
+                        contentDescription = if (isListening && isVoiceMemoryActive)
+                            "Stop listening" else "Voice memory",
+                        tint = if (isListening && isVoiceMemoryActive)
+                            MaterialTheme.colorScheme.error else ElysianViolet,
+                    )
+                }
+            }
+        }
+
+        // Voice memory listening indicator
+        if (isListening && isVoiceMemoryActive) {
+            ListeningIndicator()
+        }
 
         Spacer(Modifier.height(12.dp))
 
@@ -872,10 +972,25 @@ private fun AddMemoryDialog(
 private fun RememberCortexDialog(
     onDismiss: () -> Unit,
     onRemember: (content: String, agentId: String, memoryType: String?) -> Unit,
+    // Voice fill
+    isListening: Boolean = false,
+    pendingVoiceText: String? = null,
+    micAvailable: Boolean = true,
+    onToggleListening: () -> Unit = {},
+    onClearPendingVoice: () -> Unit = {},
 ) {
     val agents = listOf("AZOTH", "KETHER", "VAJRA", "ELYSIAN")
     var selectedAgent by remember { mutableStateOf("AZOTH") }
     var content by remember { mutableStateOf("") }
+
+    // Fill content field from voice dictation
+    LaunchedEffect(pendingVoiceText) {
+        if (pendingVoiceText != null) {
+            content = if (content.isBlank()) pendingVoiceText
+                      else "$content $pendingVoiceText"
+            onClearPendingVoice()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -909,24 +1024,42 @@ private fun RememberCortexDialog(
                         )
                     }
                 }
-                OutlinedTextField(
-                    value = content, onValueChange = { content = it },
-                    placeholder = {
-                        Text(
-                            "What should be remembered...",
-                            fontFamily = FontFamily.Monospace, fontSize = 12.sp,
-                        )
-                    },
-                    minLines = 3,
-                    maxLines = 6,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = ElysianViolet, unfocusedBorderColor = ApexBorder,
-                        cursorColor = ElysianViolet, focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary,
-                        focusedPlaceholderColor = TextMuted, unfocusedPlaceholderColor = TextMuted,
-                    ),
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                )
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    OutlinedTextField(
+                        value = content, onValueChange = { content = it },
+                        placeholder = {
+                            Text(
+                                "What should be remembered...",
+                                fontFamily = FontFamily.Monospace, fontSize = 12.sp,
+                            )
+                        },
+                        minLines = 3,
+                        maxLines = 6,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ElysianViolet, unfocusedBorderColor = ApexBorder,
+                            cursorColor = ElysianViolet, focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedPlaceholderColor = TextMuted, unfocusedPlaceholderColor = TextMuted,
+                        ),
+                        modifier = Modifier.weight(1f),
+                    )
+                    if (micAvailable) {
+                        IconButton(
+                            onClick = onToggleListening,
+                            modifier = Modifier.padding(start = 4.dp).size(36.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (isListening) Icons.Default.Stop else Icons.Default.Mic,
+                                contentDescription = if (isListening) "Stop" else "Dictate",
+                                tint = if (isListening) MaterialTheme.colorScheme.error else ElysianViolet,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
