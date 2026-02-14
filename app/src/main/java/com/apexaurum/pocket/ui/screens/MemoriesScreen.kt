@@ -345,8 +345,8 @@ private fun CortexMemoryCard(
         "semantic" -> "\u2728"     // sparkles
         "procedural" -> "\u2699"   // gear
         "affective" -> "\u2764"    // heart
-        "prospective" -> "\u{1F3AF}" // target
-        "schematic" -> "\u{1F4D0}" // triangle ruler
+        "prospective" -> "\uD83C\uDFAF" // target
+        "schematic" -> "\uD83D\uDCD0" // triangle ruler
         else -> "\u25CB"           // circle
     }
 
