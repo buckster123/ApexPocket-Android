@@ -29,6 +29,7 @@ data class ChatMessage(
     val hasImage: Boolean = false,     // photo was attached to this message
     val type: String = "message",      // "message" | "briefing" | "divider" | "pending"
     val briefingData: com.apexaurum.pocket.cloud.BriefingData? = null,
+    val agentId: String = "AZOTH",     // which agent sent this message
 )
 
 /** Tool execution result for display in chat. */
@@ -127,6 +128,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val cortexCacheAgeMs: StateFlow<Long?> = _cortexCacheAgeMs.asStateFlow()
     private val _cortexPendingCount = MutableStateFlow(0)
     val cortexPendingCount: StateFlow<Int> = _cortexPendingCount.asStateFlow()
+    private val _cortexAgentFilter = MutableStateFlow("all")
+    val cortexAgentFilter: StateFlow<String> = _cortexAgentFilter.asStateFlow()
 
     // Graph visualization
     private val _graphData = MutableStateFlow<CortexGraphResponse?>(null)
@@ -266,6 +269,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val notifNudgesEnabled: StateFlow<Boolean> = repo.notifNudgesFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val promptMode: StateFlow<String> = repo.promptModeFlow
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "lite")
 
     // API client (created when token is set)
     private var api: PocketApi? = null
@@ -491,6 +496,12 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) { }
             finally { _cortexLoading.value = false }
         }
+    }
+
+    /** Filter cortex memories by agent. */
+    fun setCortexAgentFilter(agentId: String) {
+        _cortexAgentFilter.value = agentId
+        fetchCortexMemories(agentId = if (agentId == "all") null else agentId)
     }
 
     /** Semantic search through cortex memories. */
@@ -1080,6 +1091,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                         text = m.text,
                         isUser = m.isUser,
                         timestamp = m.timestamp,
+                        agentId = agent,
                     )
                 }
                 _messages.value = msgs
@@ -1111,6 +1123,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                         type = "pending",
                         expression = "NEUTRAL",
                         timestamp = System.currentTimeMillis() - 500,
+                        agentId = msg.agentId,
                     )
                 }
                 _messages.value = _messages.value + listOf(divider) + pendingMsgs
@@ -1140,6 +1153,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     type = "briefing",
                     briefingData = briefing,
                     timestamp = 0L,  // ensures it sorts first
+                    agentId = briefing.agentId,
                 )
                 _messages.value = listOf(briefingMsg) + _messages.value
                 repo.updateBriefingDate(today)
@@ -1235,6 +1249,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                         text = response.response,
                         isUser = false,
                         expression = response.expression,
+                        agentId = currentSoul.selectedAgentId,
                     )
                     _messages.value = _messages.value + agentMsg
                     // Cache agent response to Room
@@ -1255,6 +1270,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     text = "[Cloud unreachable — ${e.message}]",
                     isUser = false,
                     expression = "SAD",
+                    agentId = currentSoul.selectedAgentId,
                 )
             } finally {
                 _isChatting.value = false
@@ -1295,6 +1311,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             text = "",
             isUser = false,
             timestamp = placeholderTs,
+            agentId = currentSoul.selectedAgentId,
         )
 
         var accumulated = ""
@@ -1368,7 +1385,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             try {
                 chatRepo.appendMessage(
                     currentSoul.selectedAgentId,
-                    ChatMessage(text = accumulated, isUser = false, expression = expression),
+                    ChatMessage(text = accumulated, isUser = false, expression = expression, agentId = currentSoul.selectedAgentId),
                 )
             } catch (_: Exception) {}
         }
@@ -1784,6 +1801,13 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     fun toggleNotifCouncils() { viewModelScope.launch { repo.saveNotifCouncils(!notifCouncilsEnabled.value) } }
     fun toggleNotifMusic() { viewModelScope.launch { repo.saveNotifMusic(!notifMusicEnabled.value) } }
     fun toggleNotifNudges() { viewModelScope.launch { repo.saveNotifNudges(!notifNudgesEnabled.value) } }
+    fun togglePromptMode() {
+        val newMode = if (promptMode.value == "lite") "full" else "lite"
+        viewModelScope.launch {
+            repo.savePromptMode(newMode)
+            try { api?.updateSettings(PocketSettingsRequest(promptMode = newMode)) } catch (_: Exception) {}
+        }
+    }
 
     fun clearChat() {
         _messages.value = emptyList()

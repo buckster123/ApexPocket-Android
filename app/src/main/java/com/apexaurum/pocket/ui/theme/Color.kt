@@ -32,3 +32,14 @@ val StateTranscendent = Color(0xFFE8B4FF)  // Violet
 val TextPrimary = Color(0xFFE0E0E0)
 val TextSecondary = Color(0xFF9E9E9E)
 val TextMuted = Color(0xFF616161)
+
+// ── Canonical agent color mapping ──
+
+/** Agent identity color — single source of truth for all Compose UI. */
+fun agentColor(agentId: String): Color = when (agentId.uppercase()) {
+    "AZOTH" -> AzothGold
+    "ELYSIAN" -> ElysianViolet
+    "VAJRA" -> VajraBlue
+    "KETHER" -> KetherWhite
+    else -> TextPrimary
+}

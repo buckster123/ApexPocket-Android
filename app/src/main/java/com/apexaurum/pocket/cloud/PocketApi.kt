@@ -182,6 +182,11 @@ interface PocketApi {
         @Path("memoryId") memoryId: String,
         @Query("max_results") maxResults: Int = 10,
     ): CortexNeighborsResponse
+
+    // ─── Settings ────────────────────────────────────────────────
+
+    @POST("api/v1/pocket/settings")
+    suspend fun updateSettings(@Body request: PocketSettingsRequest): PocketSettingsResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -777,4 +782,17 @@ data class CortexNeighborItem(
     @SerialName("memory_type") val memoryType: String = "semantic",
     @SerialName("link_type") val linkType: String = "semantic",
     val weight: Float = 0.5f,
+)
+
+// ─── Settings Models ────────────────────────────────────────────
+
+@Serializable
+data class PocketSettingsRequest(
+    @SerialName("prompt_mode") val promptMode: String? = null,
+)
+
+@Serializable
+data class PocketSettingsResponse(
+    val success: Boolean = false,
+    val updated: Map<String, String> = emptyMap(),
 )

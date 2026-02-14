@@ -25,6 +25,7 @@ fun SettingsScreen(
     cloudState: CloudState,
     autoRead: Boolean,
     hapticEnabled: Boolean,
+    promptMode: String,
     notifAgents: Boolean,
     notifCouncils: Boolean,
     notifMusic: Boolean,
@@ -33,6 +34,7 @@ fun SettingsScreen(
     onUnpair: () -> Unit,
     onToggleAutoRead: () -> Unit,
     onToggleHaptic: () -> Unit,
+    onTogglePromptMode: () -> Unit,
     onToggleNotifAgents: () -> Unit,
     onToggleNotifCouncils: () -> Unit,
     onToggleNotifMusic: () -> Unit,
@@ -144,6 +146,14 @@ fun SettingsScreen(
         Spacer(Modifier.height(8.dp))
         SettingsToggle("Auto-Read (TTS)", autoRead, onToggleAutoRead)
         SettingsToggle("Haptic Feedback", hapticEnabled, onToggleHaptic)
+        SettingsToggle("Full Agent Prompts", promptMode == "full", onTogglePromptMode)
+        Text(
+            "lite ~250 tokens  \u2022  full ~1500 tokens (richer personality, slightly higher cost)",
+            color = TextMuted,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+        )
 
         Spacer(Modifier.height(16.dp))
         HorizontalDivider(color = ApexBorder)

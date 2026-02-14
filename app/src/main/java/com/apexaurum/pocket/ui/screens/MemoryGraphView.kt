@@ -60,13 +60,6 @@ private fun linkTypeColor(type: String): Color = when (type) {
     else -> TextMuted
 }
 
-private fun agentNodeColor(agentId: String): Color = when (agentId.uppercase()) {
-    "AZOTH" -> AzothGold
-    "ELYSIAN" -> ElysianViolet
-    "VAJRA" -> VajraBlue
-    "KETHER" -> KetherWhite
-    else -> TextPrimary
-}
 
 // ── Force-Directed Graph Composable ──
 
@@ -264,7 +257,7 @@ fun MemoryGraphView(
                 if (sx < -50 || sy < -50 || sx > size.width + 50 || sy > size.height + 50) continue
 
                 val r = node.radius * scale
-                val color = agentNodeColor(node.data.agentId)
+                val color = agentColor(node.data.agentId)
                 val isSelected = selectedNode?.id == node.data.id
 
                 // Glow
@@ -366,7 +359,7 @@ private fun NodeDetailOverlay(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val agentColor = agentNodeColor(node.agentId)
+    val nodeColor = agentColor(node.agentId)
 
     Surface(
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
@@ -376,7 +369,7 @@ private fun NodeDetailOverlay(
             .heightIn(max = 300.dp)
             .border(
                 width = 1.dp,
-                color = agentColor.copy(alpha = 0.4f),
+                color = nodeColor.copy(alpha = 0.4f),
                 shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
             ),
     ) {
@@ -394,7 +387,7 @@ private fun NodeDetailOverlay(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(
                             node.agentId,
-                            color = agentColor,
+                            color = nodeColor,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace,

@@ -227,9 +227,9 @@ class NotificationWorker(
 
     private fun agentColor(id: String): Int = when (id.uppercase()) {
         "AZOTH" -> Color.parseColor("#FFD700")
-        "ELYSIAN" -> Color.parseColor("#00D4FF")
-        "VAJRA" -> Color.parseColor("#FF1493")
-        "KETHER" -> Color.parseColor("#9D4EDD")
+        "ELYSIAN" -> Color.parseColor("#E8B4FF")
+        "VAJRA" -> Color.parseColor("#4FC3F7")
+        "KETHER" -> Color.parseColor("#FFFFFF")
         else -> Color.parseColor("#FFD700")
     }
 

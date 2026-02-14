@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
                 val dreamTriggering by vm.dreamTriggering.collectAsStateWithLifecycle()
                 val cortexCacheAgeMs by vm.cortexCacheAgeMs.collectAsStateWithLifecycle()
                 val cortexPendingCount by vm.cortexPendingCount.collectAsStateWithLifecycle()
+                val cortexAgentFilter by vm.cortexAgentFilter.collectAsStateWithLifecycle()
                 val graphData by vm.graphData.collectAsStateWithLifecycle()
                 val graphLoading by vm.graphLoading.collectAsStateWithLifecycle()
                 val selectedGraphNode by vm.selectedGraphNode.collectAsStateWithLifecycle()
@@ -185,6 +186,7 @@ class MainActivity : ComponentActivity() {
                         dreamTriggering = dreamTriggering,
                         cortexCacheAgeMs = cortexCacheAgeMs,
                         cortexPendingCount = cortexPendingCount,
+                        cortexAgentFilter = cortexAgentFilter,
                         graphData = graphData,
                         graphLoading = graphLoading,
                         selectedGraphNode = selectedGraphNode,
@@ -283,6 +285,7 @@ private fun MainScreen(
     dreamTriggering: Boolean,
     cortexCacheAgeMs: Long?,
     cortexPendingCount: Int,
+    cortexAgentFilter: String = "all",
     graphData: com.apexaurum.pocket.cloud.CortexGraphResponse? = null,
     graphLoading: Boolean = false,
     selectedGraphNode: com.apexaurum.pocket.cloud.CortexMemoryNode? = null,
@@ -617,6 +620,10 @@ private fun MainScreen(
                         vm.rememberCortex(content, agentId, memoryType)
                     },
                     onSyncCortex = { vm.syncCortexQueue() },
+                    // Agent filter
+                    cortexAgentFilter = cortexAgentFilter,
+                    selectedAgent = soul.selectedAgentId,
+                    onFilterCortexAgent = { vm.setCortexAgentFilter(it) },
                     // Graph visualization
                     graphData = graphData,
                     graphLoading = graphLoading,
@@ -673,11 +680,13 @@ private fun MainScreen(
                     val notifCouncils by vm.notifCouncilsEnabled.collectAsStateWithLifecycle()
                     val notifMusic by vm.notifMusicEnabled.collectAsStateWithLifecycle()
                     val notifNudges by vm.notifNudgesEnabled.collectAsStateWithLifecycle()
+                    val promptMode by vm.promptMode.collectAsStateWithLifecycle()
                     SettingsScreen(
                         soul = soul,
                         cloudState = cloudState,
                         autoRead = autoRead,
                         hapticEnabled = settingsHaptic,
+                        promptMode = promptMode,
                         notifAgents = notifAgents,
                         notifCouncils = notifCouncils,
                         notifMusic = notifMusic,
@@ -689,6 +698,7 @@ private fun MainScreen(
                         onUnpair = { vm.unpair() },
                         onToggleAutoRead = { vm.toggleAutoRead() },
                         onToggleHaptic = { vm.toggleHaptic() },
+                        onTogglePromptMode = { vm.togglePromptMode() },
                         onToggleNotifAgents = { vm.toggleNotifAgents() },
                         onToggleNotifCouncils = { vm.toggleNotifCouncils() },
                         onToggleNotifMusic = { vm.toggleNotifMusic() },

@@ -230,13 +230,6 @@ private fun zoneColor(zone: String): androidx.compose.ui.graphics.Color = when (
     else -> TextMuted
 }
 
-private fun agentColor(agentId: String): androidx.compose.ui.graphics.Color = when (agentId.uppercase()) {
-    "AZOTH" -> Gold
-    "ELYSIAN" -> ElysianViolet
-    "VAJRA" -> VajraBlue
-    "KETHER" -> KetherWhite
-    else -> TextMuted
-}
 
 private fun relativeTime(timestamp: Long): String {
     val diff = System.currentTimeMillis() - timestamp

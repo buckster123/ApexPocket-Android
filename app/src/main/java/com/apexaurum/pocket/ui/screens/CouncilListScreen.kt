@@ -456,10 +456,3 @@ private fun CouncilSessionCard(session: CouncilSession, onClick: () -> Unit) {
     }
 }
 
-private fun agentColor(agentId: String): androidx.compose.ui.graphics.Color = when (agentId.uppercase()) {
-    "AZOTH" -> Gold
-    "ELYSIAN" -> ElysianViolet
-    "VAJRA" -> VajraBlue
-    "KETHER" -> KetherWhite
-    else -> TextMuted
-}

@@ -402,10 +402,3 @@ private fun stateInfo(state: String): Pair<androidx.compose.ui.graphics.Color, S
     else -> TextMuted to "Ready"
 }
 
-private fun agentColor(agentId: String): androidx.compose.ui.graphics.Color = when (agentId.uppercase()) {
-    "AZOTH" -> Gold
-    "ELYSIAN" -> ElysianViolet
-    "VAJRA" -> VajraBlue
-    "KETHER" -> KetherWhite
-    else -> TextMuted
-}

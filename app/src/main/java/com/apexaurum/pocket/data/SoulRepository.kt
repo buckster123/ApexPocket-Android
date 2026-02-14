@@ -48,6 +48,7 @@ class SoulRepository(private val context: Context) {
         val NOTIF_COUNCILS = booleanPreferencesKey("notif_councils_enabled")
         val NOTIF_MUSIC = booleanPreferencesKey("notif_music_enabled")
         val NOTIF_NUDGES = booleanPreferencesKey("notif_nudges_enabled")
+        val PROMPT_MODE = stringPreferencesKey("prompt_mode")
 
         // Pocket Sentinel config keys
         val PS_CAMERA = booleanPreferencesKey("ps_camera")
@@ -231,6 +232,7 @@ class SoulRepository(private val context: Context) {
     val notifCouncilsFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIF_COUNCILS] ?: true }
     val notifMusicFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIF_MUSIC] ?: true }
     val notifNudgesFlow: Flow<Boolean> = context.dataStore.data.map { it[Keys.NOTIF_NUDGES] ?: true }
+    val promptModeFlow: Flow<String> = context.dataStore.data.map { it[Keys.PROMPT_MODE] ?: "lite" }
 
     suspend fun saveHaptic(enabled: Boolean) {
         context.dataStore.edit { it[Keys.HAPTIC_ENABLED] = enabled }
@@ -246,6 +248,9 @@ class SoulRepository(private val context: Context) {
     }
     suspend fun saveNotifNudges(enabled: Boolean) {
         context.dataStore.edit { it[Keys.NOTIF_NUDGES] = enabled }
+    }
+    suspend fun savePromptMode(mode: String) {
+        context.dataStore.edit { it[Keys.PROMPT_MODE] = mode }
     }
 
     /** Clear all conversation IDs (used by settings clear-chat). */

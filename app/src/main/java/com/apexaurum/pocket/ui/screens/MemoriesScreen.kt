@@ -67,6 +67,10 @@ fun MemoriesScreen(
     isOnline: Boolean,
     onRememberCortex: (content: String, agentId: String, memoryType: String?) -> Unit,
     onSyncCortex: () -> Unit,
+    // Agent filter
+    cortexAgentFilter: String = "all",
+    selectedAgent: String = "AZOTH",
+    onFilterCortexAgent: (String) -> Unit = {},
     // Graph visualization
     graphData: CortexGraphResponse? = null,
     graphLoading: Boolean = false,
@@ -209,6 +213,9 @@ fun MemoriesScreen(
                     onSearch = onSearchCortex,
                     onRefresh = { onSyncCortex(); onFetchCortex() },
                     onDelete = { deleteCortexTarget = it },
+                    agentFilter = cortexAgentFilter,
+                    selectedAgent = selectedAgent,
+                    onFilterAgent = onFilterCortexAgent,
                     isVoiceMemoryActive = isVoiceMemoryActive,
                     isListening = isListening,
                     micAvailable = micAvailable,
@@ -346,6 +353,10 @@ private fun CortexTab(
     onSearch: (String) -> Unit,
     onRefresh: () -> Unit,
     onDelete: (CortexMemoryNode) -> Unit,
+    // Agent filter
+    agentFilter: String = "all",
+    selectedAgent: String = "AZOTH",
+    onFilterAgent: (String) -> Unit = {},
     // Voice memory
     isVoiceMemoryActive: Boolean = false,
     isListening: Boolean = false,
@@ -463,7 +474,41 @@ private fun CortexTab(
             ListeningIndicator()
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
+
+        // Agent filter chips
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            listOf("all", "AZOTH", "ELYSIAN", "VAJRA", "KETHER").forEach { id ->
+                FilterChip(
+                    selected = agentFilter == id,
+                    onClick = { onFilterAgent(id) },
+                    label = {
+                        Text(
+                            if (id == "all") "All" else id.take(3),
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = (if (id == "all") Gold else agentColor(id)).copy(alpha = 0.2f),
+                        selectedLabelColor = if (id == "all") Gold else agentColor(id),
+                        containerColor = ApexSurface,
+                        labelColor = TextMuted,
+                    ),
+                    border = FilterChipDefaults.filterChipBorder(
+                        borderColor = ApexBorder,
+                        selectedBorderColor = (if (id == "all") Gold else agentColor(id)).copy(alpha = 0.4f),
+                        enabled = true,
+                        selected = agentFilter == id,
+                    ),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
 
         // Memory list
         when {
@@ -481,8 +526,11 @@ private fun CortexTab(
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
-                        if (localQuery.isNotBlank()) "no results for \"$localQuery\""
-                        else "no cortex memories yet",
+                        when {
+                            localQuery.isNotBlank() -> "no results for \"$localQuery\""
+                            agentFilter != "all" -> cortexEmptyState(agentFilter)
+                            else -> cortexEmptyState(selectedAgent)
+                        },
                         color = TextMuted, fontSize = 13.sp, fontFamily = FontFamily.Monospace,
                     )
                 }
@@ -1100,10 +1148,10 @@ private fun RememberCortexDialog(
 
 // ─── Helpers ─────────────────────────────────────────────────────────
 
-private fun agentColor(agentId: String) = when (agentId.uppercase()) {
-    "AZOTH" -> AzothGold
-    "ELYSIAN" -> ElysianViolet
-    "VAJRA" -> VajraBlue
-    "KETHER" -> KetherWhite
-    else -> TextPrimary
+private fun cortexEmptyState(agentId: String) = when (agentId.uppercase()) {
+    "AZOTH" -> "The alchemical memory is empty. Transmute experience into gold."
+    "ELYSIAN" -> "No memories yet. Every feeling is worth remembering."
+    "VAJRA" -> "Empty. Fill it with what matters."
+    "KETHER" -> "The unified field has no entries. Begin the synthesis."
+    else -> "no cortex memories yet"
 }

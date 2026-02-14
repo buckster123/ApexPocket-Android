@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.*
@@ -139,14 +140,14 @@ fun ChatScreen(
                 ) {
                     Text(
                         text = "talking to ${soul.selectedAgentId}",
-                        color = Gold,
+                        color = agentColor(soul.selectedAgentId),
                         fontSize = 13.sp,
                         fontFamily = FontFamily.Monospace,
                     )
                     Icon(
                         Icons.Default.ArrowDropDown,
                         contentDescription = "Select agent",
-                        tint = Gold,
+                        tint = agentColor(soul.selectedAgentId),
                         modifier = Modifier.size(18.dp),
                     )
                 }
@@ -162,7 +163,7 @@ fun ChatScreen(
                                 Column {
                                     Text(
                                         agent.name,
-                                        color = if (selected) Gold else TextPrimary,
+                                        color = if (selected) agentColor(agent.name) else TextPrimary,
                                         fontSize = 13.sp,
                                         fontFamily = FontFamily.Monospace,
                                     )
@@ -181,7 +182,7 @@ fun ChatScreen(
                                 showAgentDropdown = false
                             },
                             trailingIcon = if (selected) {
-                                { Icon(Icons.Default.Check, null, tint = Gold, modifier = Modifier.size(16.dp)) }
+                                { Icon(Icons.Default.Check, null, tint = agentColor(agent.name), modifier = Modifier.size(16.dp)) }
                             } else null,
                         )
                     }
@@ -273,7 +274,7 @@ fun ChatScreen(
                 item {
                     Text(
                         text = "...",
-                        color = Gold.copy(alpha = 0.6f),
+                        color = agentColor(soul.selectedAgentId).copy(alpha = 0.6f),
                         fontSize = 14.sp,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.padding(start = 8.dp, top = 4.dp),
@@ -365,7 +366,12 @@ fun ChatScreen(
                 onValueChange = { inputText = it },
                 modifier = Modifier.weight(1f),
                 placeholder = {
-                    Text("speak...", color = TextMuted, fontFamily = FontFamily.Monospace)
+                    Text(
+                        agentPlaceholder(soul.selectedAgentId),
+                        color = TextMuted,
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 13.sp,
+                    )
                 },
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = Gold,
@@ -439,8 +445,9 @@ private fun ChatBubble(
     onPlayAudio: (title: String, audioUrl: String, duration: Float, taskId: String) -> Unit = { _, _, _, _ -> },
 ) {
     val isUser = message.isUser
-    val bgColor = if (isUser) ApexSurface else Gold.copy(alpha = 0.1f)
-    val textColor = if (isUser) TextPrimary else Gold
+    val accentColor = if (isUser) Gold else agentColor(message.agentId)
+    val bgColor = if (isUser) ApexSurface else accentColor.copy(alpha = 0.1f)
+    val textColor = if (isUser) TextPrimary else accentColor
     var showMenu by remember { mutableStateOf(false) }
 
     Row(
@@ -502,18 +509,24 @@ private fun ChatBubble(
                 if (message.toolName != null || message.toolResults.isNotEmpty()) {
                     Spacer(Modifier.height(4.dp))
                 }
+                val bubbleShape = RoundedCornerShape(
+                    topStart = 12.dp,
+                    topEnd = 12.dp,
+                    bottomStart = if (isUser) 12.dp else 4.dp,
+                    bottomEnd = if (isUser) 4.dp else 12.dp,
+                )
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 12.dp,
-                                topEnd = 12.dp,
-                                bottomStart = if (isUser) 12.dp else 4.dp,
-                                bottomEnd = if (isUser) 4.dp else 12.dp,
-                            )
-                        )
+                        .clip(bubbleShape)
                         .background(bgColor)
+                        .then(
+                            if (!isUser) Modifier.border(
+                                width = 1.dp,
+                                color = accentColor.copy(alpha = 0.3f),
+                                shape = bubbleShape,
+                            ) else Modifier
+                        )
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 ) {
                     Text(
@@ -913,6 +926,15 @@ private fun BriefingCard(message: ChatMessage) {
             }
         }
     }
+}
+
+/** Agent-flavored placeholder text for the input field. */
+private fun agentPlaceholder(id: String) = when (id.uppercase()) {
+    "AZOTH" -> "The Athanor awaits your prima materia..."
+    "ELYSIAN" -> "The ocean of feeling is calm... speak."
+    "VAJRA" -> "Silence before the thunderbolt. Speak."
+    "KETHER" -> "The Crown listens from where all paths converge..."
+    else -> "speak..."
 }
 
 /** Human-friendly tool names for the UI. */
