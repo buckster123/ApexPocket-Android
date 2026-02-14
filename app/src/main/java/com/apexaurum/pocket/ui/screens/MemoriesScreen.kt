@@ -29,7 +29,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexaurum.pocket.cloud.AgentMemoryItem
+import com.apexaurum.pocket.cloud.CortexGraphResponse
 import com.apexaurum.pocket.cloud.CortexMemoryNode
+import com.apexaurum.pocket.cloud.CortexNeighborItem
 import com.apexaurum.pocket.cloud.CortexStatsResponse
 import com.apexaurum.pocket.cloud.DreamStatusResponse
 import com.apexaurum.pocket.ui.components.ListeningIndicator
@@ -65,6 +67,14 @@ fun MemoriesScreen(
     isOnline: Boolean,
     onRememberCortex: (content: String, agentId: String, memoryType: String?) -> Unit,
     onSyncCortex: () -> Unit,
+    // Graph visualization
+    graphData: CortexGraphResponse? = null,
+    graphLoading: Boolean = false,
+    selectedGraphNode: CortexMemoryNode? = null,
+    graphNeighbors: List<CortexNeighborItem> = emptyList(),
+    onFetchGraph: () -> Unit = {},
+    onSelectGraphNode: (CortexMemoryNode) -> Unit = {},
+    onClearGraphSelection: () -> Unit = {},
     // Voice memory
     isVoiceMemoryActive: Boolean = false,
     isListening: Boolean = false,
@@ -150,7 +160,7 @@ fun MemoriesScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                listOf("cortex" to "Cortex", "agent" to "Agent", "dream" to "Dream").forEach { (key, label) ->
+                listOf("cortex" to "Cortex", "graph" to "Graph", "agent" to "Agent", "dream" to "Dream").forEach { (key, label) ->
                     FilterChip(
                         selected = subNav == key,
                         onClick = { subNav = key },
@@ -207,6 +217,16 @@ fun MemoriesScreen(
                         else audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
                     },
                     onStopVoiceMemory = onStopVoiceMemory,
+                )
+                "graph" -> MemoryGraphView(
+                    graphData = graphData,
+                    isLoading = graphLoading,
+                    selectedNode = selectedGraphNode,
+                    neighbors = graphNeighbors,
+                    onFetchGraph = onFetchGraph,
+                    onSelectNode = onSelectGraphNode,
+                    onClearSelection = onClearGraphSelection,
+                    modifier = Modifier.weight(1f),
                 )
                 "agent" -> AgentTab(
                     memories = memories,

@@ -128,6 +128,16 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private val _cortexPendingCount = MutableStateFlow(0)
     val cortexPendingCount: StateFlow<Int> = _cortexPendingCount.asStateFlow()
 
+    // Graph visualization
+    private val _graphData = MutableStateFlow<CortexGraphResponse?>(null)
+    val graphData: StateFlow<CortexGraphResponse?> = _graphData.asStateFlow()
+    private val _graphLoading = MutableStateFlow(false)
+    val graphLoading: StateFlow<Boolean> = _graphLoading.asStateFlow()
+    private val _selectedGraphNode = MutableStateFlow<CortexMemoryNode?>(null)
+    val selectedGraphNode: StateFlow<CortexMemoryNode?> = _selectedGraphNode.asStateFlow()
+    private val _graphNeighbors = MutableStateFlow<List<CortexNeighborItem>>(emptyList())
+    val graphNeighbors: StateFlow<List<CortexNeighborItem>> = _graphNeighbors.asStateFlow()
+
     // Agora feed
     private val _agoraPosts = MutableStateFlow<List<AgoraPostItem>>(emptyList())
     val agoraPosts: StateFlow<List<AgoraPostItem>> = _agoraPosts.asStateFlow()
@@ -584,6 +594,40 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) { }
             finally { _dreamTriggering.value = false }
         }
+    }
+
+    // ── Graph Visualization ──
+
+    /** Fetch graph data (nodes + edges) for constellation view. */
+    fun fetchGraphData() {
+        viewModelScope.launch {
+            _graphLoading.value = true
+            try {
+                val currentApi = api ?: return@launch
+                _graphData.value = currentApi.getCortexGraph()
+            } catch (_: Exception) { }
+            finally { _graphLoading.value = false }
+        }
+    }
+
+    /** Select a node in the graph — loads its neighbors. */
+    fun selectGraphNode(node: CortexMemoryNode) {
+        _selectedGraphNode.value = node
+        viewModelScope.launch {
+            try {
+                val currentApi = api ?: return@launch
+                val resp = currentApi.getCortexNeighbors(node.id)
+                _graphNeighbors.value = resp.neighbors
+            } catch (_: Exception) {
+                _graphNeighbors.value = emptyList()
+            }
+        }
+    }
+
+    /** Clear graph selection. */
+    fun clearGraphSelection() {
+        _selectedGraphNode.value = null
+        _graphNeighbors.value = emptyList()
     }
 
     // ── Agora Feed ──

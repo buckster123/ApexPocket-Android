@@ -167,6 +167,21 @@ interface PocketApi {
 
     @POST("api/v1/pocket/cortex/dream")
     suspend fun triggerDream(): DreamRunResponse
+
+    // ─── CerebroCortex Graph ────────────────────────────────────────────
+
+    @GET("api/v1/pocket/cortex/graph")
+    suspend fun getCortexGraph(
+        @Query("limit") limit: Int = 80,
+        @Query("layer") layer: String? = null,
+        @Query("agent_id") agentId: String? = null,
+    ): CortexGraphResponse
+
+    @GET("api/v1/pocket/cortex/neighbors/{memoryId}")
+    suspend fun getCortexNeighbors(
+        @Path("memoryId") memoryId: String,
+        @Query("max_results") maxResults: Int = 10,
+    ): CortexNeighborsResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -731,4 +746,35 @@ data class DreamRunResponse(
     val tier: String = "",
     val fallback: Boolean = false,
     val report: DreamReport? = null,
+)
+
+// ─── CerebroCortex Graph Models ─────────────────────────────────────
+
+@Serializable
+data class CortexGraphResponse(
+    val nodes: List<CortexMemoryNode> = emptyList(),
+    val edges: List<CortexGraphEdge> = emptyList(),
+)
+
+@Serializable
+data class CortexGraphEdge(
+    val source: String,
+    val target: String,
+    val type: String = "semantic",
+    val weight: Float = 0.5f,
+)
+
+@Serializable
+data class CortexNeighborsResponse(
+    @SerialName("memory_id") val memoryId: String,
+    val neighbors: List<CortexNeighborItem> = emptyList(),
+)
+
+@Serializable
+data class CortexNeighborItem(
+    val id: String,
+    val content: String = "",
+    @SerialName("memory_type") val memoryType: String = "semantic",
+    @SerialName("link_type") val linkType: String = "semantic",
+    val weight: Float = 0.5f,
 )

@@ -85,6 +85,10 @@ class MainActivity : ComponentActivity() {
                 val dreamTriggering by vm.dreamTriggering.collectAsStateWithLifecycle()
                 val cortexCacheAgeMs by vm.cortexCacheAgeMs.collectAsStateWithLifecycle()
                 val cortexPendingCount by vm.cortexPendingCount.collectAsStateWithLifecycle()
+                val graphData by vm.graphData.collectAsStateWithLifecycle()
+                val graphLoading by vm.graphLoading.collectAsStateWithLifecycle()
+                val selectedGraphNode by vm.selectedGraphNode.collectAsStateWithLifecycle()
+                val graphNeighbors by vm.graphNeighbors.collectAsStateWithLifecycle()
                 val agoraPosts by vm.agoraPosts.collectAsStateWithLifecycle()
                 val agoraLoading by vm.agoraLoading.collectAsStateWithLifecycle()
                 val villageEvents by vm.villageEvents.collectAsStateWithLifecycle()
@@ -181,6 +185,10 @@ class MainActivity : ComponentActivity() {
                         dreamTriggering = dreamTriggering,
                         cortexCacheAgeMs = cortexCacheAgeMs,
                         cortexPendingCount = cortexPendingCount,
+                        graphData = graphData,
+                        graphLoading = graphLoading,
+                        selectedGraphNode = selectedGraphNode,
+                        graphNeighbors = graphNeighbors,
                         agoraPosts = agoraPosts,
                         agoraLoading = agoraLoading,
                         villageEvents = villageEvents,
@@ -275,6 +283,10 @@ private fun MainScreen(
     dreamTriggering: Boolean,
     cortexCacheAgeMs: Long?,
     cortexPendingCount: Int,
+    graphData: com.apexaurum.pocket.cloud.CortexGraphResponse? = null,
+    graphLoading: Boolean = false,
+    selectedGraphNode: com.apexaurum.pocket.cloud.CortexMemoryNode? = null,
+    graphNeighbors: List<com.apexaurum.pocket.cloud.CortexNeighborItem> = emptyList(),
     agoraPosts: List<com.apexaurum.pocket.cloud.AgoraPostItem>,
     agoraLoading: Boolean,
     villageEvents: List<VillageEvent>,
@@ -605,6 +617,14 @@ private fun MainScreen(
                         vm.rememberCortex(content, agentId, memoryType)
                     },
                     onSyncCortex = { vm.syncCortexQueue() },
+                    // Graph visualization
+                    graphData = graphData,
+                    graphLoading = graphLoading,
+                    selectedGraphNode = selectedGraphNode,
+                    graphNeighbors = graphNeighbors,
+                    onFetchGraph = { vm.fetchGraphData() },
+                    onSelectGraphNode = { vm.selectGraphNode(it) },
+                    onClearGraphSelection = { vm.clearGraphSelection() },
                     // Voice memory
                     isVoiceMemoryActive = isVoiceMemoryActive,
                     isListening = isListening,
