@@ -108,6 +108,21 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private val _memoriesLoading = MutableStateFlow(false)
     val memoriesLoading: StateFlow<Boolean> = _memoriesLoading.asStateFlow()
 
+    // CerebroCortex
+    private val cortexDao = db.cortexDao()
+    private val _cortexMemories = MutableStateFlow<List<CortexMemoryNode>>(emptyList())
+    val cortexMemories: StateFlow<List<CortexMemoryNode>> = _cortexMemories.asStateFlow()
+    private val _cortexLoading = MutableStateFlow(false)
+    val cortexLoading: StateFlow<Boolean> = _cortexLoading.asStateFlow()
+    private val _cortexSearchQuery = MutableStateFlow("")
+    val cortexSearchQuery: StateFlow<String> = _cortexSearchQuery.asStateFlow()
+    private val _cortexStats = MutableStateFlow<CortexStatsResponse?>(null)
+    val cortexStats: StateFlow<CortexStatsResponse?> = _cortexStats.asStateFlow()
+    private val _dreamStatus = MutableStateFlow<DreamStatusResponse?>(null)
+    val dreamStatus: StateFlow<DreamStatusResponse?> = _dreamStatus.asStateFlow()
+    private val _dreamTriggering = MutableStateFlow(false)
+    val dreamTriggering: StateFlow<Boolean> = _dreamTriggering.asStateFlow()
+
     // Agora feed
     private val _agoraPosts = MutableStateFlow<List<AgoraPostItem>>(emptyList())
     val agoraPosts: StateFlow<List<AgoraPostItem>> = _agoraPosts.asStateFlow()
@@ -393,6 +408,120 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             } catch (_: Exception) {
                 fetchMemories()
             }
+        }
+    }
+
+    // ── CerebroCortex ──
+
+    /** Fetch cortex memories from cloud. Caches to Room. */
+    fun fetchCortexMemories(layer: String? = null, agentId: String? = null, memoryType: String? = null) {
+        viewModelScope.launch {
+            _cortexLoading.value = true
+            try {
+                val currentApi = api
+                if (currentApi != null && isOnline.value) {
+                    val nodes = currentApi.getCortexMemories(
+                        layer = layer, agentId = agentId, memoryType = memoryType,
+                    )
+                    _cortexMemories.value = nodes
+                    // Cache to Room
+                    cortexDao.clearAll()
+                    cortexDao.insertAll(nodes.map { n ->
+                        com.apexaurum.pocket.data.db.CachedCortexMemory(
+                            id = n.id, content = n.content, agentId = n.agentId,
+                            layer = n.layer, memoryType = n.memoryType,
+                            salience = n.salience, valence = n.valence,
+                            accessCount = n.accessCount, tags = n.tags.joinToString(","),
+                            concepts = n.concepts.joinToString(","),
+                            linkCount = n.linkCount, createdAt = n.createdAt,
+                        )
+                    })
+                } else {
+                    // Offline — load from Room cache
+                    cortexDao.getAll().first().let { cached ->
+                        _cortexMemories.value = cached.map { c ->
+                            CortexMemoryNode(
+                                id = c.id, content = c.content, agentId = c.agentId,
+                                layer = c.layer, memoryType = c.memoryType,
+                                salience = c.salience, valence = c.valence,
+                                accessCount = c.accessCount,
+                                tags = c.tags.split(",").filter { it.isNotBlank() },
+                                concepts = c.concepts.split(",").filter { it.isNotBlank() },
+                                linkCount = c.linkCount, createdAt = c.createdAt,
+                            )
+                        }
+                    }
+                }
+            } catch (_: Exception) { }
+            finally { _cortexLoading.value = false }
+        }
+    }
+
+    /** Semantic search through cortex memories. */
+    fun searchCortexMemories(query: String) {
+        _cortexSearchQuery.value = query
+        if (query.isBlank()) {
+            fetchCortexMemories()
+            return
+        }
+        viewModelScope.launch {
+            _cortexLoading.value = true
+            try {
+                val currentApi = api ?: return@launch
+                val results = currentApi.searchCortexMemories(
+                    CortexSearchRequest(query = query)
+                )
+                _cortexMemories.value = results
+            } catch (_: Exception) { }
+            finally { _cortexLoading.value = false }
+        }
+    }
+
+    /** Delete a cortex memory. */
+    fun deleteCortexMemory(memoryId: String) {
+        viewModelScope.launch {
+            _cortexMemories.value = _cortexMemories.value.filter { it.id != memoryId }
+            try {
+                api?.deleteCortexMemory(memoryId)
+                cortexDao.deleteById(memoryId)
+            } catch (_: Exception) {
+                fetchCortexMemories()
+            }
+        }
+    }
+
+    /** Fetch cortex stats. */
+    fun fetchCortexStats() {
+        viewModelScope.launch {
+            try {
+                val currentApi = api ?: return@launch
+                _cortexStats.value = currentApi.getCortexStats()
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Fetch dream engine status. */
+    fun fetchDreamStatus() {
+        viewModelScope.launch {
+            try {
+                val currentApi = api ?: return@launch
+                _dreamStatus.value = currentApi.getDreamStatus()
+            } catch (_: Exception) { }
+        }
+    }
+
+    /** Trigger a dream consolidation cycle. */
+    fun triggerDream() {
+        viewModelScope.launch {
+            _dreamTriggering.value = true
+            try {
+                val currentApi = api ?: return@launch
+                currentApi.triggerDream()
+                // Refresh status after triggering
+                delay(1000)
+                fetchDreamStatus()
+            } catch (_: Exception) { }
+            finally { _dreamTriggering.value = false }
         }
     }
 

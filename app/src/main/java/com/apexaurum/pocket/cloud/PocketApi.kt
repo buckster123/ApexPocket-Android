@@ -134,6 +134,34 @@ interface PocketApi {
 
     @POST("api/v1/pocket/sentinel/pocket-alert")
     suspend fun postPocketAlert(@Body body: PocketAlertRequest): PocketAlertResponse
+
+    // ─── CerebroCortex Memory ────────────────────────────────────────
+
+    @GET("api/v1/pocket/cortex/memories")
+    suspend fun getCortexMemories(
+        @Query("layer") layer: String? = null,
+        @Query("agent_id") agentId: String? = null,
+        @Query("memory_type") memoryType: String? = null,
+        @Query("limit") limit: Int = 30,
+        @Query("offset") offset: Int = 0,
+    ): List<CortexMemoryNode>
+
+    @POST("api/v1/pocket/cortex/search")
+    suspend fun searchCortexMemories(
+        @Body request: CortexSearchRequest,
+    ): List<CortexMemoryNode>
+
+    @GET("api/v1/pocket/cortex/stats")
+    suspend fun getCortexStats(): CortexStatsResponse
+
+    @DELETE("api/v1/pocket/cortex/memories/{id}")
+    suspend fun deleteCortexMemory(@Path("id") id: String): CortexDeleteResponse
+
+    @GET("api/v1/pocket/cortex/dream")
+    suspend fun getDreamStatus(): DreamStatusResponse
+
+    @POST("api/v1/pocket/cortex/dream")
+    suspend fun triggerDream(): DreamRunResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -607,4 +635,77 @@ data class PocketAlertResponse(
     val id: String = "",
     @SerialName("alert_type") val alertType: String = "",
     @SerialName("created_at") val createdAt: String? = null,
+)
+
+// ─── CerebroCortex Models ─────────────────────────────────────────
+
+@Serializable
+data class CortexMemoryNode(
+    val id: String,
+    val content: String = "",
+    @SerialName("agent_id") val agentId: String = "AZOTH",
+    val layer: String = "working",
+    @SerialName("memory_type") val memoryType: String = "semantic",
+    val salience: Float = 0.5f,
+    val valence: String = "neutral",
+    @SerialName("access_count") val accessCount: Int = 0,
+    val tags: List<String> = emptyList(),
+    val concepts: List<String> = emptyList(),
+    @SerialName("link_count") val linkCount: Int = 0,
+    val score: Float = 0f,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+@Serializable
+data class CortexSearchRequest(
+    val query: String,
+    @SerialName("agent_id") val agentId: String? = null,
+    @SerialName("memory_types") val memoryTypes: List<String>? = null,
+    @SerialName("min_salience") val minSalience: Float = 0f,
+    val limit: Int = 20,
+)
+
+@Serializable
+data class CortexStatsResponse(
+    val total: Int = 0,
+    @SerialName("by_layer") val byLayer: Map<String, Int> = emptyMap(),
+    @SerialName("by_agent") val byAgent: Map<String, Int> = emptyMap(),
+    @SerialName("by_memory_type") val byMemoryType: Map<String, Int> = emptyMap(),
+    val links: Int = 0,
+    val episodes: Int = 0,
+)
+
+@Serializable
+data class CortexDeleteResponse(
+    val deleted: String = "",
+)
+
+@Serializable
+data class DreamStatusResponse(
+    @SerialName("cycles_used") val cyclesUsed: Int = 0,
+    @SerialName("cycles_limit") val cyclesLimit: Int = 0,
+    @SerialName("unconsolidated_episodes") val unconsolidatedEpisodes: Int = 0,
+    @SerialName("last_report") val lastReport: DreamReport? = null,
+    val tier: String = "free_trial",
+)
+
+@Serializable
+data class DreamReport(
+    val id: String? = null,
+    val phases: Int = 0,
+    @SerialName("memories_processed") val memoriesProcessed: Int = 0,
+    @SerialName("links_created") val linksCreated: Int = 0,
+    @SerialName("memories_pruned") val memoriesPruned: Int = 0,
+    val summary: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+@Serializable
+data class DreamRunResponse(
+    val status: String = "",
+    @SerialName("job_id") val jobId: String? = null,
+    @SerialName("max_llm_calls") val maxLlmCalls: Int = 0,
+    val tier: String = "",
+    val fallback: Boolean = false,
+    val report: DreamReport? = null,
 )

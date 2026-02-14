@@ -61,6 +61,24 @@ interface MemoryDao {
 }
 
 @Dao
+interface CortexDao {
+    @Query("SELECT * FROM cached_cortex_memories ORDER BY cachedAt DESC")
+    fun getAll(): Flow<List<CachedCortexMemory>>
+
+    @Query("SELECT * FROM cached_cortex_memories WHERE agentId = :agentId ORDER BY cachedAt DESC")
+    fun getByAgent(agentId: String): Flow<List<CachedCortexMemory>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(memories: List<CachedCortexMemory>)
+
+    @Query("DELETE FROM cached_cortex_memories WHERE id = :id")
+    suspend fun deleteById(id: String)
+
+    @Query("DELETE FROM cached_cortex_memories")
+    suspend fun clearAll()
+}
+
+@Dao
 interface OfflineActionDao {
     @Query("SELECT * FROM offline_actions ORDER BY createdAt ASC")
     suspend fun getAll(): List<OfflineAction>

@@ -36,6 +36,24 @@ data class CachedMemory(
     val confidence: Float = 0.8f,
 )
 
+/** Cached CerebroCortex memory — rich semantic memory with layers and types. */
+@Entity(tableName = "cached_cortex_memories")
+data class CachedCortexMemory(
+    @PrimaryKey val id: String,
+    val content: String,
+    val agentId: String = "AZOTH",
+    val layer: String = "working",
+    val memoryType: String = "semantic",
+    val salience: Float = 0.5f,
+    val valence: String = "neutral",
+    val accessCount: Int = 0,
+    val tags: String = "",
+    val concepts: String = "",
+    val linkCount: Int = 0,
+    val createdAt: String? = null,
+    val cachedAt: Long = System.currentTimeMillis(),
+)
+
 /** Queued action for offline replay. */
 @Entity(tableName = "offline_actions")
 data class OfflineAction(

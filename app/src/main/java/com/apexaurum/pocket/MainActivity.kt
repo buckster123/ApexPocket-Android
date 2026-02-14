@@ -77,6 +77,12 @@ class MainActivity : ComponentActivity() {
                 val pendingVoiceText by vm.pendingVoiceText.collectAsStateWithLifecycle()
                 val memories by vm.memories.collectAsStateWithLifecycle()
                 val memoriesLoading by vm.memoriesLoading.collectAsStateWithLifecycle()
+                val cortexMemories by vm.cortexMemories.collectAsStateWithLifecycle()
+                val cortexLoading by vm.cortexLoading.collectAsStateWithLifecycle()
+                val cortexSearchQuery by vm.cortexSearchQuery.collectAsStateWithLifecycle()
+                val cortexStats by vm.cortexStats.collectAsStateWithLifecycle()
+                val dreamStatus by vm.dreamStatus.collectAsStateWithLifecycle()
+                val dreamTriggering by vm.dreamTriggering.collectAsStateWithLifecycle()
                 val agoraPosts by vm.agoraPosts.collectAsStateWithLifecycle()
                 val agoraLoading by vm.agoraLoading.collectAsStateWithLifecycle()
                 val villageEvents by vm.villageEvents.collectAsStateWithLifecycle()
@@ -164,6 +170,12 @@ class MainActivity : ComponentActivity() {
                         agents = agents,
                         memories = memories,
                         memoriesLoading = memoriesLoading,
+                        cortexMemories = cortexMemories,
+                        cortexLoading = cortexLoading,
+                        cortexSearchQuery = cortexSearchQuery,
+                        cortexStats = cortexStats,
+                        dreamStatus = dreamStatus,
+                        dreamTriggering = dreamTriggering,
                         agoraPosts = agoraPosts,
                         agoraLoading = agoraLoading,
                         villageEvents = villageEvents,
@@ -249,6 +261,12 @@ private fun MainScreen(
     agents: List<com.apexaurum.pocket.cloud.AgentInfo>,
     memories: List<com.apexaurum.pocket.cloud.AgentMemoryItem>,
     memoriesLoading: Boolean,
+    cortexMemories: List<com.apexaurum.pocket.cloud.CortexMemoryNode>,
+    cortexLoading: Boolean,
+    cortexSearchQuery: String,
+    cortexStats: com.apexaurum.pocket.cloud.CortexStatsResponse?,
+    dreamStatus: com.apexaurum.pocket.cloud.DreamStatusResponse?,
+    dreamTriggering: Boolean,
     agoraPosts: List<com.apexaurum.pocket.cloud.AgoraPostItem>,
     agoraLoading: Boolean,
     villageEvents: List<VillageEvent>,
@@ -559,6 +577,18 @@ private fun MainScreen(
                     onRefresh = { vm.fetchMemories() },
                     onSave = { k, v, t -> vm.saveMemory(k, v, t) },
                     onDelete = { vm.deleteMemory(it) },
+                    cortexMemories = cortexMemories,
+                    cortexLoading = cortexLoading,
+                    cortexSearchQuery = cortexSearchQuery,
+                    cortexStats = cortexStats,
+                    dreamStatus = dreamStatus,
+                    dreamTriggering = dreamTriggering,
+                    onFetchCortex = { vm.fetchCortexMemories() },
+                    onSearchCortex = { vm.searchCortexMemories(it) },
+                    onDeleteCortex = { vm.deleteCortexMemory(it) },
+                    onFetchCortexStats = { vm.fetchCortexStats() },
+                    onFetchDreamStatus = { vm.fetchDreamStatus() },
+                    onTriggerDream = { vm.triggerDream() },
                 )
                 5 -> SensorsScreen(
                     status = sensorStatus,

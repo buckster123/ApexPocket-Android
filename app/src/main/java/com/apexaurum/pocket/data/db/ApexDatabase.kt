@@ -6,14 +6,15 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [CachedMessage::class, CachedAgent::class, CachedMemory::class, OfflineAction::class],
-    version = 1,
+    entities = [CachedMessage::class, CachedAgent::class, CachedMemory::class, CachedCortexMemory::class, OfflineAction::class],
+    version = 2,
     exportSchema = false,
 )
 abstract class ApexDatabase : RoomDatabase() {
     abstract fun messageDao(): MessageDao
     abstract fun agentDao(): AgentDao
     abstract fun memoryDao(): MemoryDao
+    abstract fun cortexDao(): CortexDao
     abstract fun offlineActionDao(): OfflineActionDao
 
     companion object {
