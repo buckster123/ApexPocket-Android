@@ -9,6 +9,7 @@ import com.apexaurum.pocket.data.db.ApexDatabase
 import com.apexaurum.pocket.soul.LoveEquation
 import com.apexaurum.pocket.soul.SoulData
 import com.apexaurum.pocket.voice.SpeechService
+import android.util.Log
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -291,13 +292,36 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         // Register music toggle bridge for widget broadcast
         com.apexaurum.pocket.widget.MusicToggleBridge.toggleCallback = { musicPlayer.togglePlayPause() }
 
-        // ── Offline sync: process queue when network comes back ──
+        // ── Global reconnect: sync queues + refresh when connection restores ──
         viewModelScope.launch {
+            var wasOnline = isOnline.value
             isOnline.collect { online ->
-                if (online) {
-                    val currentApi = api ?: return@collect
+                if (online && !wasOnline) {
+                    // Connection restored — debounce to avoid rapid wifi toggles
+                    delay(800)
+                    if (!isOnline.value) { wasOnline = false; return@collect }
+
+                    // Wait for API client (token collect may not have fired yet)
+                    var retries = 0
+                    while (api == null && retries < 10) { delay(300); retries++ }
+                    val currentApi = api
+                    if (currentApi == null) { wasOnline = online; return@collect }
+
+                    Log.d("Reconnect", "Connection restored — syncing queues + refreshing")
+
+                    // 1. Flush offline action queue (care, memories, cortex)
                     try { syncManager.processQueue(currentApi) } catch (_: Exception) {}
+
+                    // 2. Reconnect Village Pulse with fresh WS token
+                    try { connectVillagePulse() } catch (_: Exception) {}
+
+                    // 3. Refresh cortex cache + pending count
+                    try {
+                        cortexRepo.refreshFromApi(currentApi)
+                        refreshCortexMeta()
+                    } catch (_: Exception) {}
                 }
+                wasOnline = online
             }
         }
     }
