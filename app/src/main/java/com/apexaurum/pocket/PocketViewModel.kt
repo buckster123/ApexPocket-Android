@@ -179,6 +179,18 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private val _sensorCapturing = MutableStateFlow<Set<String>>(emptySet())
     val sensorCapturing: StateFlow<Set<String>> = _sensorCapturing.asStateFlow()
 
+    // Sentinel
+    private val _sentinelStatus = MutableStateFlow<SentinelStatusResponse?>(null)
+    val sentinelStatus: StateFlow<SentinelStatusResponse?> = _sentinelStatus.asStateFlow()
+    private val _sentinelEvents = MutableStateFlow<List<SentinelEvent>>(emptyList())
+    val sentinelEvents: StateFlow<List<SentinelEvent>> = _sentinelEvents.asStateFlow()
+    private val _sentinelUnacked = MutableStateFlow(0)
+    val sentinelUnacked: StateFlow<Int> = _sentinelUnacked.asStateFlow()
+    private val _sentinelLoading = MutableStateFlow(false)
+    val sentinelLoading: StateFlow<Boolean> = _sentinelLoading.asStateFlow()
+    private val _sentinelSnapshot = MutableStateFlow<String?>(null)
+    val sentinelSnapshot: StateFlow<String?> = _sentinelSnapshot.asStateFlow()
+
     // Conversation IDs per agent (from DataStore)
     private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -1282,6 +1294,97 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 _sensorCapturing.value = emptySet()
             }
         }
+    }
+
+    // ── Sentinel ──
+
+    fun fetchSentinelStatus() {
+        viewModelScope.launch {
+            try {
+                val resp = api?.getSentinelStatus() ?: return@launch
+                _sentinelStatus.value = resp
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun fetchSentinelEvents() {
+        viewModelScope.launch {
+            try {
+                val resp = api?.getSentinelEvents() ?: return@launch
+                _sentinelEvents.value = resp.events
+                _sentinelUnacked.value = resp.unackedCount
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun sentinelToggleArm() {
+        viewModelScope.launch {
+            _sentinelLoading.value = true
+            try {
+                val isArmed = _sentinelStatus.value?.armed == true
+                val resp = if (isArmed) api?.sentinelDisarm() else api?.sentinelArm()
+                resp?.let {
+                    _sentinelStatus.value = _sentinelStatus.value?.copy(
+                        armed = it.armed,
+                        running = it.running,
+                        config = it.config ?: _sentinelStatus.value?.config,
+                        stats = it.stats ?: _sentinelStatus.value?.stats,
+                    )
+                }
+            } catch (_: Exception) {}
+            finally { _sentinelLoading.value = false }
+        }
+    }
+
+    fun sentinelLoadPreset(name: String) {
+        viewModelScope.launch {
+            _sentinelLoading.value = true
+            try {
+                val resp = api?.sentinelLoadPreset(name) ?: return@launch
+                _sentinelStatus.value = _sentinelStatus.value?.copy(
+                    config = resp.config ?: _sentinelStatus.value?.config,
+                    stats = resp.stats ?: _sentinelStatus.value?.stats,
+                )
+            } catch (_: Exception) {}
+            finally { _sentinelLoading.value = false }
+        }
+    }
+
+    fun sentinelAckEvent(id: String) {
+        viewModelScope.launch {
+            try {
+                api?.sentinelAckEvent(id)
+                _sentinelEvents.value = _sentinelEvents.value.map {
+                    if (it.id == id) it.copy(acknowledged = true) else it
+                }
+                _sentinelUnacked.value = maxOf(0, _sentinelUnacked.value - 1)
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun sentinelAckAll() {
+        viewModelScope.launch {
+            try {
+                api?.sentinelAckAll()
+                _sentinelEvents.value = _sentinelEvents.value.map { it.copy(acknowledged = true) }
+                _sentinelUnacked.value = 0
+            } catch (_: Exception) {}
+        }
+    }
+
+    fun sentinelViewSnapshot(eventId: String) {
+        viewModelScope.launch {
+            try {
+                val resp = api?.getSentinelSnapshot(eventId) ?: return@launch
+                _sentinelSnapshot.value = resp.imageBase64
+            } catch (_: Exception) {
+                _sentinelSnapshot.value = null
+            }
+        }
+    }
+
+    fun sentinelDismissSnapshot() {
+        _sentinelSnapshot.value = null
     }
 
     // ── Settings actions ──

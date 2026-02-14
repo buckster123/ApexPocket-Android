@@ -99,6 +99,38 @@ interface PocketApi {
 
     @POST("api/v1/pocket/sensors/snapshot")
     suspend fun sensorSnapshot(): SensorSnapshotResponse
+
+    // ─── Sentinel (autonomous motion detection) ────────────────────
+
+    @GET("api/v1/pocket/sentinel/status")
+    suspend fun getSentinelStatus(): SentinelStatusResponse
+
+    @POST("api/v1/pocket/sentinel/arm")
+    suspend fun sentinelArm(): SentinelActionResponse
+
+    @POST("api/v1/pocket/sentinel/disarm")
+    suspend fun sentinelDisarm(): SentinelActionResponse
+
+    @POST("api/v1/pocket/sentinel/configure")
+    suspend fun sentinelConfigure(@Body config: Map<String, @Serializable Any>): SentinelActionResponse
+
+    @POST("api/v1/pocket/sentinel/presets/{name}/load")
+    suspend fun sentinelLoadPreset(@Path("name") name: String): SentinelActionResponse
+
+    @GET("api/v1/pocket/sentinel/events")
+    suspend fun getSentinelEvents(
+        @Query("limit") limit: Int = 30,
+        @Query("offset") offset: Int = 0,
+    ): SentinelEventsResponse
+
+    @POST("api/v1/pocket/sentinel/events/{id}/ack")
+    suspend fun sentinelAckEvent(@Path("id") id: String): SentinelAckResponse
+
+    @POST("api/v1/pocket/sentinel/events/ack-all")
+    suspend fun sentinelAckAll(): SentinelAckResponse
+
+    @GET("api/v1/pocket/sentinel/events/{id}/snapshot")
+    suspend fun getSentinelSnapshot(@Path("id") id: String): SentinelSnapshotResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -458,4 +490,100 @@ data class SensorSnapshotResponse(
     val errors: List<String> = emptyList(),
     @SerialName("total_duration_ms") val totalDurationMs: Int = 0,
     @SerialName("device_name") val deviceName: String = "",
+)
+
+// ─── Sentinel Models ─────────────────────────────────────────────
+
+@Serializable
+data class SentinelConfig(
+    @SerialName("thermal_threshold_c") val thermalThresholdC: Float = 2.0f,
+    @SerialName("min_changed_pixels") val minChangedPixels: Int = 10,
+    @SerialName("scan_interval") val scanInterval: Float = 0.5f,
+    @SerialName("ai_confirm") val aiConfirm: Boolean = true,
+    @SerialName("ai_confidence") val aiConfidence: Float = 0.3f,
+    @SerialName("ai_labels") val aiLabels: List<String> = listOf("person", "cat", "dog", "bird"),
+    @SerialName("cooldown_s") val cooldownS: Float = 30f,
+    @SerialName("max_alerts_per_hour") val maxAlertsPerHour: Int = 20,
+    @SerialName("include_snapshot") val includeSnapshot: Boolean = true,
+    @SerialName("active_start") val activeStart: String = "",
+    @SerialName("active_end") val activeEnd: String = "",
+)
+
+@Serializable
+data class SentinelStats(
+    @SerialName("scan_count") val scanCount: Int = 0,
+    @SerialName("trigger_count") val triggerCount: Int = 0,
+    @SerialName("alert_count") val alertCount: Int = 0,
+    @SerialName("alerts_this_hour") val alertsThisHour: Int = 0,
+    @SerialName("last_scan_ms") val lastScanMs: Float = 0f,
+    @SerialName("last_alert_time") val lastAlertTime: Double = 0.0,
+)
+
+@Serializable
+data class SentinelStatusResponse(
+    val online: Boolean = false,
+    val armed: Boolean = false,
+    val running: Boolean = false,
+    val config: SentinelConfig? = null,
+    val presets: List<String> = emptyList(),
+    val stats: SentinelStats? = null,
+)
+
+@Serializable
+data class SentinelActionResponse(
+    val action: String = "",
+    val armed: Boolean = false,
+    val running: Boolean = false,
+    val config: SentinelConfig? = null,
+    val presets: List<String> = emptyList(),
+    val stats: SentinelStats? = null,
+    val preset: String? = null,
+)
+
+@Serializable
+data class SentinelEventData(
+    @SerialName("event_type") val eventType: String = "motion",
+    val timestamp: Double = 0.0,
+    @SerialName("thermal_delta") val thermalDelta: Float = 0f,
+    @SerialName("changed_pixels") val changedPixels: Int = 0,
+    @SerialName("thermal_min_c") val thermalMinC: Float = 0f,
+    @SerialName("thermal_max_c") val thermalMaxC: Float = 0f,
+    @SerialName("thermal_avg_c") val thermalAvgC: Float = 0f,
+    @SerialName("ai_detections") val aiDetections: List<SentinelDetection> = emptyList(),
+)
+
+@Serializable
+data class SentinelDetection(
+    val label: String = "",
+    val confidence: Float = 0f,
+    @SerialName("class_id") val classId: Int = 0,
+)
+
+@Serializable
+data class SentinelEvent(
+    val id: String = "",
+    val type: String = "motion",
+    val data: SentinelEventData? = null,
+    val acknowledged: Boolean = false,
+    @SerialName("created_at") val createdAt: String? = null,
+    @SerialName("has_snapshot") val hasSnapshot: Boolean = false,
+)
+
+@Serializable
+data class SentinelEventsResponse(
+    val events: List<SentinelEvent> = emptyList(),
+    @SerialName("unacked_count") val unackedCount: Int = 0,
+)
+
+@Serializable
+data class SentinelAckResponse(
+    val action: String = "",
+    @SerialName("event_id") val eventId: String? = null,
+    val count: Int? = null,
+)
+
+@Serializable
+data class SentinelSnapshotResponse(
+    @SerialName("image_base64") val imageBase64: String? = null,
+    @SerialName("event_id") val eventId: String? = null,
 )

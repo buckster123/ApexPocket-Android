@@ -108,6 +108,11 @@ class MainActivity : ComponentActivity() {
                 val sensorImages by vm.sensorImages.collectAsStateWithLifecycle()
                 val sensorLoading by vm.sensorLoading.collectAsStateWithLifecycle()
                 val sensorCapturing by vm.sensorCapturing.collectAsStateWithLifecycle()
+                val sentinelStatus by vm.sentinelStatus.collectAsStateWithLifecycle()
+                val sentinelEvents by vm.sentinelEvents.collectAsStateWithLifecycle()
+                val sentinelUnacked by vm.sentinelUnacked.collectAsStateWithLifecycle()
+                val sentinelLoading by vm.sentinelLoading.collectAsStateWithLifecycle()
+                val sentinelSnapshot by vm.sentinelSnapshot.collectAsStateWithLifecycle()
 
                 // Request notification permission on Android 13+
                 if (Build.VERSION.SDK_INT >= 33) {
@@ -185,6 +190,11 @@ class MainActivity : ComponentActivity() {
                         sensorImages = sensorImages,
                         sensorLoading = sensorLoading,
                         sensorCapturing = sensorCapturing,
+                        sentinelStatus = sentinelStatus,
+                        sentinelEvents = sentinelEvents,
+                        sentinelUnacked = sentinelUnacked,
+                        sentinelLoading = sentinelLoading,
+                        sentinelSnapshot = sentinelSnapshot,
                         onVibrate = { pattern -> if (hapticEnabled) vibrate(pattern) },
                     )
                 }
@@ -260,6 +270,11 @@ private fun MainScreen(
     sensorImages: Map<String, String>,
     sensorLoading: Boolean,
     sensorCapturing: Set<String>,
+    sentinelStatus: com.apexaurum.pocket.cloud.SentinelStatusResponse? = null,
+    sentinelEvents: List<com.apexaurum.pocket.cloud.SentinelEvent> = emptyList(),
+    sentinelUnacked: Int = 0,
+    sentinelLoading: Boolean = false,
+    sentinelSnapshot: String? = null,
     onVibrate: (VibratePattern) -> Unit,
 ) {
     var selectedTab by remember {
@@ -536,6 +551,19 @@ private fun MainScreen(
                     onReadEnvironment = { vm.readSensorEnvironment() },
                     onCapture = { vm.captureSensorCamera(it) },
                     onFullSnapshot = { vm.sensorFullSnapshot() },
+                    sentinelStatus = sentinelStatus,
+                    sentinelEvents = sentinelEvents,
+                    sentinelUnacked = sentinelUnacked,
+                    sentinelLoading = sentinelLoading,
+                    sentinelSnapshot = sentinelSnapshot,
+                    onSentinelToggleArm = { vm.sentinelToggleArm() },
+                    onSentinelLoadPreset = { vm.sentinelLoadPreset(it) },
+                    onSentinelFetchStatus = { vm.fetchSentinelStatus() },
+                    onSentinelFetchEvents = { vm.fetchSentinelEvents() },
+                    onSentinelAck = { vm.sentinelAckEvent(it) },
+                    onSentinelAckAll = { vm.sentinelAckAll() },
+                    onSentinelViewSnapshot = { vm.sentinelViewSnapshot(it) },
+                    onSentinelDismissSnapshot = { vm.sentinelDismissSnapshot() },
                 )
                 6 -> {
                     val settingsHaptic by vm.hapticEnabled.collectAsStateWithLifecycle()

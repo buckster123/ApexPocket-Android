@@ -47,12 +47,14 @@ class NotificationWorker(
         const val CHANNEL_AGENTS = "agent_messages"
         const val CHANNEL_COUNCILS = "council_alerts"
         const val CHANNEL_MUSIC = "music_alerts"
+        const val CHANNEL_SENTINEL = "sentinel_alerts"
 
         // Notification ID ranges (non-overlapping)
         private const val ID_NUDGE = 42
         private const val ID_AGENT_BASE = 100
         private const val ID_COUNCIL_BASE = 200
         private const val ID_MUSIC_BASE = 300
+        private const val ID_SENTINEL_BASE = 400
     }
 
     override suspend fun doWork(): Result {
@@ -137,6 +139,7 @@ class NotificationWorker(
             val (channel, idBase, tab) = when (msg.eventType) {
                 "council_complete" -> Triple(CHANNEL_COUNCILS, ID_COUNCIL_BASE, "council_list")
                 "music_complete" -> Triple(CHANNEL_MUSIC, ID_MUSIC_BASE, "music")
+                "sentinel_alert" -> Triple(CHANNEL_SENTINEL, ID_SENTINEL_BASE, "sensors")
                 else -> Triple(CHANNEL_AGENTS, ID_AGENT_BASE, "chat")
             }
 

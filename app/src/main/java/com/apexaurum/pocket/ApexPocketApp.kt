@@ -45,6 +45,13 @@ class ApexPocketApp : Application() {
                 ).apply {
                     description = "Music generation completions"
                 },
+                NotificationChannel(
+                    NotificationWorker.CHANNEL_SENTINEL,
+                    "Sentinel Alerts",
+                    NotificationManager.IMPORTANCE_HIGH,
+                ).apply {
+                    description = "SensorHead motion detection alerts"
+                },
             )
         )
 

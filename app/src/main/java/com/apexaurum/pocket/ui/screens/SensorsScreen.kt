@@ -23,6 +23,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.apexaurum.pocket.cloud.SensorStatusResponse
+import com.apexaurum.pocket.cloud.SentinelStatusResponse
+import com.apexaurum.pocket.cloud.SentinelEvent
 import com.apexaurum.pocket.ui.theme.*
 
 @Composable
@@ -35,6 +37,20 @@ fun SensorsScreen(
     onReadEnvironment: () -> Unit,
     onCapture: (String) -> Unit,
     onFullSnapshot: () -> Unit,
+    // Sentinel
+    sentinelStatus: SentinelStatusResponse?,
+    sentinelEvents: List<SentinelEvent>,
+    sentinelUnacked: Int,
+    sentinelLoading: Boolean,
+    sentinelSnapshot: String?,
+    onSentinelToggleArm: () -> Unit,
+    onSentinelLoadPreset: (String) -> Unit,
+    onSentinelFetchStatus: () -> Unit,
+    onSentinelFetchEvents: () -> Unit,
+    onSentinelAck: (String) -> Unit,
+    onSentinelAckAll: () -> Unit,
+    onSentinelViewSnapshot: (String) -> Unit,
+    onSentinelDismissSnapshot: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val online = status?.online ?: false
@@ -44,6 +60,8 @@ fun SensorsScreen(
     // Fetch status on first display
     LaunchedEffect(Unit) {
         onRefreshStatus()
+        onSentinelFetchStatus()
+        onSentinelFetchEvents()
     }
 
     LazyColumn(
@@ -297,6 +315,24 @@ fun SensorsScreen(
             }
         }
 
+        // ─── Sentinel ──────────────────────────────────────────────
+        item {
+            SentinelCard(
+                sentinelStatus = sentinelStatus,
+                events = sentinelEvents,
+                unackedCount = sentinelUnacked,
+                isLoading = sentinelLoading,
+                online = online,
+                onToggleArm = onSentinelToggleArm,
+                onLoadPreset = onSentinelLoadPreset,
+                onFetchStatus = onSentinelFetchStatus,
+                onFetchEvents = onSentinelFetchEvents,
+                onAck = onSentinelAck,
+                onAckAll = onSentinelAckAll,
+                onViewSnapshot = onSentinelViewSnapshot,
+            )
+        }
+
         // ─── Camera Panels ──────────────────────────────────────
         item {
             Text(
@@ -341,6 +377,28 @@ fun SensorsScreen(
                 enabled = online && !isSnapshotting,
                 onCapture = { onCapture("thermal") },
             )
+        }
+    }
+
+    // Snapshot lightbox
+    if (sentinelSnapshot != null) {
+        val bitmap = remember(sentinelSnapshot) {
+            try {
+                val bytes = Base64.decode(sentinelSnapshot, Base64.DEFAULT)
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            } catch (_: Exception) { null }
+        }
+        if (bitmap != null) {
+            androidx.compose.ui.window.Dialog(onDismissRequest = onSentinelDismissSnapshot) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Sentinel snapshot",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.FillWidth,
+                )
+            }
         }
     }
 }
@@ -482,6 +540,293 @@ private fun CameraPanel(
             }
         }
     }
+}
+
+// ─── Sentinel Card ──────────────────────────────────────────────────
+
+@Composable
+private fun SentinelCard(
+    sentinelStatus: SentinelStatusResponse?,
+    events: List<SentinelEvent>,
+    unackedCount: Int,
+    isLoading: Boolean,
+    online: Boolean,
+    onToggleArm: () -> Unit,
+    onLoadPreset: (String) -> Unit,
+    onFetchStatus: () -> Unit,
+    onFetchEvents: () -> Unit,
+    onAck: (String) -> Unit,
+    onAckAll: () -> Unit,
+    onViewSnapshot: (String) -> Unit,
+) {
+    val armed = sentinelStatus?.armed ?: false
+    val stats = sentinelStatus?.stats
+    var showPresets by remember { mutableStateOf(false) }
+
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = ApexSurface,
+        border = BorderStroke(
+            1.dp,
+            if (armed) Color(0xFFEF4444).copy(alpha = 0.4f) else ApexBorder.copy(alpha = 0.3f),
+        ),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            // Header row: shield + title + badge + arm button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = if (armed) "\uD83D\uDEE1\uFE0F" else "\uD83D\uDEE1",
+                    fontSize = 20.sp,
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "SENTINEL",
+                            color = TextPrimary,
+                            fontSize = 13.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.sp,
+                        )
+                        if (unackedCount > 0) {
+                            Spacer(Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = Color(0xFFEF4444).copy(alpha = 0.2f),
+                            ) {
+                                Text(
+                                    text = "$unackedCount",
+                                    color = Color(0xFFEF4444),
+                                    fontSize = 10.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = if (armed) {
+                            "Armed" +
+                                (stats?.scanCount?.let { " \u00B7 $it scans" } ?: "") +
+                                (stats?.alertCount?.let { " \u00B7 $it alerts" } ?: "")
+                        } else "Disarmed",
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+
+                // Arm/Disarm button
+                Button(
+                    onClick = onToggleArm,
+                    enabled = online && !isLoading,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (armed) Color(0xFFEF4444).copy(alpha = 0.2f) else StateFlourishing.copy(alpha = 0.2f),
+                        contentColor = if (armed) Color(0xFFEF4444) else StateFlourishing,
+                        disabledContainerColor = TextMuted.copy(alpha = 0.1f),
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                ) {
+                    Text(
+                        text = when {
+                            isLoading -> "..."
+                            armed -> "Disarm"
+                            else -> "Arm"
+                        },
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+
+            // Presets row
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(text = "Preset:", color = TextMuted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                for (preset in listOf("default", "night_watch", "away_mode", "pet_watch")) {
+                    Surface(
+                        onClick = { onLoadPreset(preset) },
+                        enabled = online && !isLoading,
+                        shape = RoundedCornerShape(6.dp),
+                        color = ApexBlack.copy(alpha = 0.5f),
+                        border = BorderStroke(1.dp, ApexBorder.copy(alpha = 0.2f)),
+                    ) {
+                        Text(
+                            text = preset.replace("_", " "),
+                            color = Gold,
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                        )
+                    }
+                }
+            }
+
+            // Events
+            if (events.isNotEmpty()) {
+                Spacer(Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "RECENT EVENTS",
+                        color = TextMuted,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                    )
+                    Spacer(Modifier.weight(1f))
+                    if (unackedCount > 0) {
+                        TextButton(onClick = onAckAll) {
+                            Text(
+                                text = "Ack all",
+                                color = TextMuted,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
+                }
+
+                // Show last 5 events
+                for (event in events.take(5)) {
+                    SentinelEventRow(
+                        event = event,
+                        onAck = { onAck(event.id) },
+                        onViewSnapshot = { onViewSnapshot(event.id) },
+                    )
+                }
+            } else if (armed) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "Monitoring for motion...",
+                    color = TextMuted.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SentinelEventRow(
+    event: SentinelEvent,
+    onAck: () -> Unit,
+    onViewSnapshot: () -> Unit,
+) {
+    val icon = when (event.type) {
+        "person" -> "\uD83D\uDEB6"
+        "cat" -> "\uD83D\uDC31"
+        "dog" -> "\uD83D\uDC36"
+        "bird" -> "\uD83D\uDC26"
+        else -> "\u26A1"
+    }
+    val typeColor = when (event.type) {
+        "person" -> Color(0xFFEF4444)
+        "motion" -> StateWarm
+        else -> VajraBlue
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(text = icon, fontSize = 14.sp)
+        Spacer(Modifier.width(6.dp))
+
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = event.type.replaceFirstChar { it.uppercase() },
+                    color = typeColor,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold,
+                )
+                event.data?.let { d ->
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "${d.changedPixels}px \u00B7 ${d.thermalDelta}\u00B0C",
+                        color = TextMuted,
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+            event.createdAt?.let { ts ->
+                Text(
+                    text = formatSentinelTime(ts),
+                    color = TextMuted.copy(alpha = 0.5f),
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+        }
+
+        // Snapshot button
+        if (event.hasSnapshot) {
+            TextButton(
+                onClick = onViewSnapshot,
+                contentPadding = PaddingValues(4.dp),
+            ) {
+                Text(text = "\uD83D\uDCF7", fontSize = 12.sp)
+            }
+        }
+
+        // Ack button
+        if (!event.acknowledged) {
+            TextButton(
+                onClick = onAck,
+                contentPadding = PaddingValues(4.dp),
+            ) {
+                Text(
+                    text = "\u2713",
+                    color = StateFlourishing,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        } else {
+            Text(
+                text = "\u2713",
+                color = TextMuted.copy(alpha = 0.3f),
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+        }
+    }
+}
+
+private fun formatSentinelTime(isoStr: String): String {
+    return try {
+        val instant = java.time.Instant.parse(isoStr)
+        val diff = (System.currentTimeMillis() / 1000) - instant.epochSecond
+        when {
+            diff < 60 -> "${diff}s ago"
+            diff < 3600 -> "${diff / 60}m ago"
+            diff < 86400 -> "${diff / 3600}h ago"
+            else -> "${diff / 86400}d ago"
+        }
+    } catch (_: Exception) { isoStr.take(16) }
 }
 
 // ─── Utility functions ──────────────────────────────────────────────
