@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import androidx.work.*
+import com.apexaurum.pocket.sentinel.PocketSentinelService
 import com.apexaurum.pocket.widget.NotificationWorker
 import com.apexaurum.pocket.widget.WidgetUpdateWorker
 import java.util.concurrent.TimeUnit
@@ -51,6 +52,13 @@ class ApexPocketApp : Application() {
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply {
                     description = "SensorHead motion detection alerts"
+                },
+                NotificationChannel(
+                    PocketSentinelService.CHANNEL_SERVICE,
+                    "Pocket Sentinel Service",
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    description = "Shown while Pocket Sentinel is actively monitoring"
                 },
             )
         )

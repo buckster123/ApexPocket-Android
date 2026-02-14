@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.apexaurum.pocket.soul.Personality
 import com.apexaurum.pocket.soul.SoulData
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -47,6 +48,17 @@ class SoulRepository(private val context: Context) {
         val NOTIF_COUNCILS = booleanPreferencesKey("notif_councils_enabled")
         val NOTIF_MUSIC = booleanPreferencesKey("notif_music_enabled")
         val NOTIF_NUDGES = booleanPreferencesKey("notif_nudges_enabled")
+
+        // Pocket Sentinel config keys
+        val PS_CAMERA = booleanPreferencesKey("ps_camera")
+        val PS_SOUND = booleanPreferencesKey("ps_sound")
+        val PS_MOTION = booleanPreferencesKey("ps_motion")
+        val PS_CAM_THRESHOLD = intPreferencesKey("ps_cam_threshold")
+        val PS_CAM_MIN_PIXELS = intPreferencesKey("ps_cam_min_pixels")
+        val PS_SOUND_DB = floatPreferencesKey("ps_sound_db")
+        val PS_MOTION_G = floatPreferencesKey("ps_motion_g")
+        val PS_COOLDOWN = intPreferencesKey("ps_cooldown")
+        val PS_BACK_CAMERA = booleanPreferencesKey("ps_back_camera")
 
         // Widget state keys (written by ViewModel, read by SoulWidget)
         val WIDGET_EXPRESSION = stringPreferencesKey("widget_expression")
@@ -253,5 +265,36 @@ class SoulRepository(private val context: Context) {
             existing[agent] = JsonPrimitive(conversationId)
             prefs[Keys.CONVERSATION_IDS] = JsonObject(existing).toString()
         }
+    }
+
+    // ── Pocket Sentinel config persistence ──
+
+    suspend fun savePocketSentinelConfig(config: com.apexaurum.pocket.sentinel.PocketSentinelConfig) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.PS_CAMERA] = config.cameraEnabled
+            prefs[Keys.PS_SOUND] = config.soundEnabled
+            prefs[Keys.PS_MOTION] = config.motionEnabled
+            prefs[Keys.PS_CAM_THRESHOLD] = config.cameraThreshold
+            prefs[Keys.PS_CAM_MIN_PIXELS] = config.cameraMinPixels
+            prefs[Keys.PS_SOUND_DB] = config.soundThresholdDb
+            prefs[Keys.PS_MOTION_G] = config.motionThresholdG
+            prefs[Keys.PS_COOLDOWN] = config.cooldownSeconds
+            prefs[Keys.PS_BACK_CAMERA] = config.useBackCamera
+        }
+    }
+
+    suspend fun loadPocketSentinelConfig(): com.apexaurum.pocket.sentinel.PocketSentinelConfig {
+        val prefs = context.dataStore.data.first()
+        return com.apexaurum.pocket.sentinel.PocketSentinelConfig(
+            cameraEnabled = prefs[Keys.PS_CAMERA] ?: true,
+            soundEnabled = prefs[Keys.PS_SOUND] ?: false,
+            motionEnabled = prefs[Keys.PS_MOTION] ?: false,
+            cameraThreshold = prefs[Keys.PS_CAM_THRESHOLD] ?: 25,
+            cameraMinPixels = prefs[Keys.PS_CAM_MIN_PIXELS] ?: 50,
+            soundThresholdDb = prefs[Keys.PS_SOUND_DB] ?: -30f,
+            motionThresholdG = prefs[Keys.PS_MOTION_G] ?: 0.5f,
+            cooldownSeconds = prefs[Keys.PS_COOLDOWN] ?: 30,
+            useBackCamera = prefs[Keys.PS_BACK_CAMERA] ?: true,
+        )
     }
 }

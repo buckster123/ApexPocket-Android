@@ -51,6 +51,15 @@ fun SensorsScreen(
     onSentinelAckAll: () -> Unit,
     onSentinelViewSnapshot: (String) -> Unit,
     onSentinelDismissSnapshot: () -> Unit,
+    // Pocket Sentinel (phone as guardian)
+    pocketRunning: Boolean = false,
+    pocketMode: Set<com.apexaurum.pocket.sentinel.DetectionMode> = emptySet(),
+    pocketEventCount: Int = 0,
+    pocketLastEvent: com.apexaurum.pocket.sentinel.PocketSentinelEvent? = null,
+    pocketConfig: com.apexaurum.pocket.sentinel.PocketSentinelConfig = com.apexaurum.pocket.sentinel.PocketSentinelConfig(),
+    onPocketArm: () -> Unit = {},
+    onPocketDisarm: () -> Unit = {},
+    onPocketUpdateConfig: (com.apexaurum.pocket.sentinel.PocketSentinelConfig) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val online = status?.online ?: false
@@ -330,6 +339,20 @@ fun SensorsScreen(
                 onAck = onSentinelAck,
                 onAckAll = onSentinelAckAll,
                 onViewSnapshot = onSentinelViewSnapshot,
+            )
+        }
+
+        // ─── Pocket Sentinel (phone as guardian) ─────────────────
+        item {
+            PocketSentinelCard(
+                running = pocketRunning,
+                activeMode = pocketMode,
+                eventCount = pocketEventCount,
+                lastEvent = pocketLastEvent,
+                config = pocketConfig,
+                onArm = onPocketArm,
+                onDisarm = onPocketDisarm,
+                onUpdateConfig = onPocketUpdateConfig,
             )
         }
 
@@ -874,5 +897,357 @@ private fun formatAge(seconds: Float): String {
         s < 60 -> "${s}s ago"
         s < 3600 -> "${s / 60}m ago"
         else -> "${s / 3600}h ago"
+    }
+}
+
+
+// ─── Pocket Sentinel Card ────────────────────────────────────────────
+
+@Composable
+private fun PocketSentinelCard(
+    running: Boolean,
+    activeMode: Set<com.apexaurum.pocket.sentinel.DetectionMode>,
+    eventCount: Int,
+    lastEvent: com.apexaurum.pocket.sentinel.PocketSentinelEvent?,
+    config: com.apexaurum.pocket.sentinel.PocketSentinelConfig,
+    onArm: () -> Unit,
+    onDisarm: () -> Unit,
+    onUpdateConfig: (com.apexaurum.pocket.sentinel.PocketSentinelConfig) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var localConfig by remember(config) { mutableStateOf(config) }
+
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = ApexSurface,
+        border = BorderStroke(
+            1.dp,
+            if (running) Gold.copy(alpha = 0.4f) else ApexBorder,
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 12.dp),
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = "\uD83D\uDCF1",
+                    fontSize = 18.sp,
+                )
+                Spacer(Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "POCKET SENTINEL",
+                        color = if (running) Gold else TextPrimary,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.sp,
+                    )
+                    Text(
+                        text = "Use this phone as a guardian",
+                        color = TextMuted,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+                if (eventCount > 0 && running) {
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFEF4444),
+                        modifier = Modifier.padding(end = 8.dp),
+                    ) {
+                        Text(
+                            text = "$eventCount",
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+                Button(
+                    onClick = { if (running) onDisarm() else onArm() },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (running) Color(0xFFEF4444) else Gold,
+                    ),
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                ) {
+                    Text(
+                        text = if (running) "DISARM" else "ARM",
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = if (running) Color.White else ApexBlack,
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // Mode toggles
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                ModeChip(
+                    label = "Camera",
+                    icon = "\uD83D\uDCF7",
+                    enabled = localConfig.cameraEnabled,
+                    active = com.apexaurum.pocket.sentinel.DetectionMode.CAMERA in activeMode,
+                    onClick = {
+                        localConfig = localConfig.copy(cameraEnabled = !localConfig.cameraEnabled)
+                        onUpdateConfig(localConfig)
+                    },
+                )
+                ModeChip(
+                    label = "Sound",
+                    icon = "\uD83C\uDF99",
+                    enabled = localConfig.soundEnabled,
+                    active = com.apexaurum.pocket.sentinel.DetectionMode.SOUND in activeMode,
+                    onClick = {
+                        localConfig = localConfig.copy(soundEnabled = !localConfig.soundEnabled)
+                        onUpdateConfig(localConfig)
+                    },
+                )
+                ModeChip(
+                    label = "Motion",
+                    icon = "\uD83D\uDCF3",
+                    enabled = localConfig.motionEnabled,
+                    active = com.apexaurum.pocket.sentinel.DetectionMode.MOTION in activeMode,
+                    onClick = {
+                        localConfig = localConfig.copy(motionEnabled = !localConfig.motionEnabled)
+                        onUpdateConfig(localConfig)
+                    },
+                )
+            }
+
+            // Status when armed
+            if (running) {
+                Spacer(Modifier.height(12.dp))
+                Surface(
+                    shape = RoundedCornerShape(6.dp),
+                    color = Gold.copy(alpha = 0.1f),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        val modeText = activeMode.joinToString(", ") { it.name.lowercase() }
+                        Text(
+                            text = "ARMED  \u00B7  $modeText  \u00B7  $eventCount events",
+                            color = Gold,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                        )
+                        if (lastEvent != null) {
+                            val ago = (System.currentTimeMillis() - lastEvent.timestampMs) / 1000f
+                            Text(
+                                text = "\u26A1 ${lastEvent.detail}  \u00B7  ${formatAge(ago)}",
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Expandable config
+            Spacer(Modifier.height(8.dp))
+            TextButton(
+                onClick = { expanded = !expanded },
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(
+                    text = if (expanded) "\u25BC Settings" else "\u25B6 Settings",
+                    color = TextMuted,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                )
+            }
+
+            if (expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // Camera sensitivity
+                    if (localConfig.cameraEnabled) {
+                        ConfigSlider(
+                            label = "Camera sensitivity",
+                            value = localConfig.cameraMinPixels.toFloat(),
+                            range = 10f..200f,
+                            valueLabel = "${localConfig.cameraMinPixels}px",
+                            onValueChange = {
+                                localConfig = localConfig.copy(cameraMinPixels = it.toInt())
+                            },
+                            onValueChangeFinished = { onUpdateConfig(localConfig) },
+                        )
+                        // Camera selector
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "Camera:",
+                                color = TextMuted,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.width(70.dp),
+                            )
+                            ModeChip(
+                                label = "Back",
+                                icon = "",
+                                enabled = localConfig.useBackCamera,
+                                active = false,
+                                onClick = {
+                                    localConfig = localConfig.copy(useBackCamera = true)
+                                    onUpdateConfig(localConfig)
+                                },
+                            )
+                            Spacer(Modifier.width(4.dp))
+                            ModeChip(
+                                label = "Front",
+                                icon = "",
+                                enabled = !localConfig.useBackCamera,
+                                active = false,
+                                onClick = {
+                                    localConfig = localConfig.copy(useBackCamera = false)
+                                    onUpdateConfig(localConfig)
+                                },
+                            )
+                        }
+                    }
+
+                    // Sound threshold
+                    if (localConfig.soundEnabled) {
+                        ConfigSlider(
+                            label = "Sound threshold",
+                            value = localConfig.soundThresholdDb,
+                            range = -50f..-10f,
+                            valueLabel = "%.0f dB".format(localConfig.soundThresholdDb),
+                            onValueChange = {
+                                localConfig = localConfig.copy(soundThresholdDb = it)
+                            },
+                            onValueChangeFinished = { onUpdateConfig(localConfig) },
+                        )
+                    }
+
+                    // Motion threshold
+                    if (localConfig.motionEnabled) {
+                        ConfigSlider(
+                            label = "Motion threshold",
+                            value = localConfig.motionThresholdG,
+                            range = 0.1f..2.0f,
+                            valueLabel = "%.1f g".format(localConfig.motionThresholdG),
+                            onValueChange = {
+                                localConfig = localConfig.copy(motionThresholdG = it)
+                            },
+                            onValueChangeFinished = { onUpdateConfig(localConfig) },
+                        )
+                    }
+
+                    // Cooldown
+                    ConfigSlider(
+                        label = "Cooldown",
+                        value = localConfig.cooldownSeconds.toFloat(),
+                        range = 5f..120f,
+                        valueLabel = "${localConfig.cooldownSeconds}s",
+                        onValueChange = {
+                            localConfig = localConfig.copy(cooldownSeconds = it.toInt())
+                        },
+                        onValueChangeFinished = { onUpdateConfig(localConfig) },
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ModeChip(
+    label: String,
+    icon: String,
+    enabled: Boolean,
+    active: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(6.dp),
+        color = when {
+            active -> Gold.copy(alpha = 0.2f)
+            enabled -> ApexSurface
+            else -> ApexBlack.copy(alpha = 0.3f)
+        },
+        border = BorderStroke(
+            1.dp,
+            when {
+                active -> Gold.copy(alpha = 0.6f)
+                enabled -> Gold.copy(alpha = 0.3f)
+                else -> ApexBorder
+            },
+        ),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        ) {
+            if (icon.isNotEmpty()) {
+                Text(text = icon, fontSize = 12.sp)
+                Spacer(Modifier.width(4.dp))
+            }
+            Text(
+                text = label,
+                color = if (enabled) Gold else TextMuted,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = if (enabled) FontWeight.Bold else FontWeight.Normal,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ConfigSlider(
+    label: String,
+    value: Float,
+    range: ClosedFloatingPointRange<Float>,
+    valueLabel: String,
+    onValueChange: (Float) -> Unit,
+    onValueChangeFinished: () -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Text(
+                text = label,
+                color = TextMuted,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+            )
+            Text(
+                text = valueLabel,
+                color = Gold,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            onValueChangeFinished = onValueChangeFinished,
+            valueRange = range,
+            colors = SliderDefaults.colors(
+                thumbColor = Gold,
+                activeTrackColor = Gold,
+                inactiveTrackColor = ApexBorder,
+            ),
+            modifier = Modifier.height(28.dp),
+        )
     }
 }

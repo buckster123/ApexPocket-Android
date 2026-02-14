@@ -191,6 +191,14 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     private val _sentinelSnapshot = MutableStateFlow<String?>(null)
     val sentinelSnapshot: StateFlow<String?> = _sentinelSnapshot.asStateFlow()
 
+    // Pocket Sentinel (phone as guardian)
+    val pocketSentinelRunning: StateFlow<Boolean> = com.apexaurum.pocket.sentinel.PocketSentinelService.isRunning
+    val pocketSentinelMode: StateFlow<Set<com.apexaurum.pocket.sentinel.DetectionMode>> = com.apexaurum.pocket.sentinel.PocketSentinelService.activeMode
+    val pocketSentinelEventCount: StateFlow<Int> = com.apexaurum.pocket.sentinel.PocketSentinelService.eventCount
+    val pocketSentinelLastEvent: StateFlow<com.apexaurum.pocket.sentinel.PocketSentinelEvent?> = com.apexaurum.pocket.sentinel.PocketSentinelService.lastEvent
+    private val _pocketSentinelConfig = MutableStateFlow(com.apexaurum.pocket.sentinel.PocketSentinelConfig())
+    val pocketSentinelConfig: StateFlow<com.apexaurum.pocket.sentinel.PocketSentinelConfig> = _pocketSentinelConfig.asStateFlow()
+
     // Conversation IDs per agent (from DataStore)
     private val _conversationIds: StateFlow<Map<String, String>> = repo.conversationIdsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
@@ -1385,6 +1393,29 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
 
     fun sentinelDismissSnapshot() {
         _sentinelSnapshot.value = null
+    }
+
+    // ── Pocket Sentinel (phone as guardian) ──
+
+    fun pocketSentinelArm() {
+        com.apexaurum.pocket.sentinel.PocketSentinelService.start(getApplication(), _pocketSentinelConfig.value)
+    }
+
+    fun pocketSentinelDisarm() {
+        com.apexaurum.pocket.sentinel.PocketSentinelService.stop(getApplication())
+    }
+
+    fun pocketSentinelUpdateConfig(config: com.apexaurum.pocket.sentinel.PocketSentinelConfig) {
+        _pocketSentinelConfig.value = config
+        viewModelScope.launch {
+            repo.savePocketSentinelConfig(config)
+        }
+    }
+
+    fun loadPocketSentinelConfig() {
+        viewModelScope.launch {
+            _pocketSentinelConfig.value = repo.loadPocketSentinelConfig()
+        }
     }
 
     // ── Settings actions ──

@@ -131,6 +131,9 @@ interface PocketApi {
 
     @GET("api/v1/pocket/sentinel/events/{id}/snapshot")
     suspend fun getSentinelSnapshot(@Path("id") id: String): SentinelSnapshotResponse
+
+    @POST("api/v1/pocket/sentinel/pocket-alert")
+    suspend fun postPocketAlert(@Body body: PocketAlertRequest): PocketAlertResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -586,4 +589,22 @@ data class SentinelAckResponse(
 data class SentinelSnapshotResponse(
     @SerialName("image_base64") val imageBase64: String? = null,
     @SerialName("event_id") val eventId: String? = null,
+)
+
+// ─── Pocket Sentinel (phone as guardian) ────────────────────────────
+
+@Serializable
+data class PocketAlertRequest(
+    @SerialName("alert_type") val alertType: String,
+    @SerialName("snapshot_b64") val snapshotB64: String? = null,
+    @SerialName("detection_mode") val detectionMode: String,
+    val magnitude: Float,
+    val detail: String,
+)
+
+@Serializable
+data class PocketAlertResponse(
+    val id: String = "",
+    @SerialName("alert_type") val alertType: String = "",
+    @SerialName("created_at") val createdAt: String? = null,
 )

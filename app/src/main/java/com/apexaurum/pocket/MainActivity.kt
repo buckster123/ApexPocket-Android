@@ -113,6 +113,14 @@ class MainActivity : ComponentActivity() {
                 val sentinelUnacked by vm.sentinelUnacked.collectAsStateWithLifecycle()
                 val sentinelLoading by vm.sentinelLoading.collectAsStateWithLifecycle()
                 val sentinelSnapshot by vm.sentinelSnapshot.collectAsStateWithLifecycle()
+                val pocketRunning by vm.pocketSentinelRunning.collectAsStateWithLifecycle()
+                val pocketMode by vm.pocketSentinelMode.collectAsStateWithLifecycle()
+                val pocketEventCount by vm.pocketSentinelEventCount.collectAsStateWithLifecycle()
+                val pocketLastEvent by vm.pocketSentinelLastEvent.collectAsStateWithLifecycle()
+                val pocketConfig by vm.pocketSentinelConfig.collectAsStateWithLifecycle()
+
+                // Load pocket sentinel config from DataStore
+                LaunchedEffect(Unit) { vm.loadPocketSentinelConfig() }
 
                 // Request notification permission on Android 13+
                 if (Build.VERSION.SDK_INT >= 33) {
@@ -195,6 +203,11 @@ class MainActivity : ComponentActivity() {
                         sentinelUnacked = sentinelUnacked,
                         sentinelLoading = sentinelLoading,
                         sentinelSnapshot = sentinelSnapshot,
+                        pocketRunning = pocketRunning,
+                        pocketMode = pocketMode,
+                        pocketEventCount = pocketEventCount,
+                        pocketLastEvent = pocketLastEvent,
+                        pocketConfig = pocketConfig,
                         onVibrate = { pattern -> if (hapticEnabled) vibrate(pattern) },
                     )
                 }
@@ -275,6 +288,11 @@ private fun MainScreen(
     sentinelUnacked: Int = 0,
     sentinelLoading: Boolean = false,
     sentinelSnapshot: String? = null,
+    pocketRunning: Boolean = false,
+    pocketMode: Set<com.apexaurum.pocket.sentinel.DetectionMode> = emptySet(),
+    pocketEventCount: Int = 0,
+    pocketLastEvent: com.apexaurum.pocket.sentinel.PocketSentinelEvent? = null,
+    pocketConfig: com.apexaurum.pocket.sentinel.PocketSentinelConfig = com.apexaurum.pocket.sentinel.PocketSentinelConfig(),
     onVibrate: (VibratePattern) -> Unit,
 ) {
     var selectedTab by remember {
@@ -564,6 +582,14 @@ private fun MainScreen(
                     onSentinelAckAll = { vm.sentinelAckAll() },
                     onSentinelViewSnapshot = { vm.sentinelViewSnapshot(it) },
                     onSentinelDismissSnapshot = { vm.sentinelDismissSnapshot() },
+                    pocketRunning = pocketRunning,
+                    pocketMode = pocketMode,
+                    pocketEventCount = pocketEventCount,
+                    pocketLastEvent = pocketLastEvent,
+                    pocketConfig = pocketConfig,
+                    onPocketArm = { vm.pocketSentinelArm() },
+                    onPocketDisarm = { vm.pocketSentinelDisarm() },
+                    onPocketUpdateConfig = { vm.pocketSentinelUpdateConfig(it) },
                 )
                 6 -> {
                     val settingsHaptic by vm.hapticEnabled.collectAsStateWithLifecycle()
