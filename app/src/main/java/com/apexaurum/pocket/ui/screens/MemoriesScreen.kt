@@ -591,8 +591,10 @@ private fun DreamTab(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    val isUnlimited = status.cyclesLimit < 0
                     Text(
-                        "${status.cyclesUsed} / ${status.cyclesLimit}",
+                        if (isUnlimited) "${status.cyclesUsed} / \u221E"
+                        else "${status.cyclesUsed} / ${status.cyclesLimit}",
                         color = Gold,
                         fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
@@ -605,7 +607,7 @@ private fun DreamTab(
                         fontFamily = FontFamily.Monospace,
                     )
 
-                    if (status.cyclesLimit > 0) {
+                    if (!isUnlimited && status.cyclesLimit > 0) {
                         Spacer(Modifier.height(12.dp))
                         LinearProgressIndicator(
                             progress = { (status.cyclesUsed.toFloat() / status.cyclesLimit).coerceIn(0f, 1f) },
@@ -664,7 +666,7 @@ private fun DreamTab(
             Spacer(Modifier.weight(1f))
 
             // Trigger button
-            val canDream = status.cyclesLimit > 0 && status.cyclesUsed < status.cyclesLimit
+            val canDream = status.cyclesLimit < 0 || (status.cyclesLimit > 0 && status.cyclesUsed < status.cyclesLimit)
             Button(
                 onClick = onTrigger,
                 modifier = Modifier.fillMaxWidth(),
