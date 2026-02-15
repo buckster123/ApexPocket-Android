@@ -290,7 +290,7 @@ private fun LeaderboardView(
         }
 
         // Agent leaderboard
-        val entries = leaderboard?.leaderboard ?: emptyList()
+        val entries = leaderboard?.agents ?: emptyList()
         items(entries) { entry ->
             val color = agentColor(entry.agentId)
             Surface(
