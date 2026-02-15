@@ -192,6 +192,39 @@ interface PocketApi {
 
     @GET("api/v1/app/latest")
     suspend fun getLatestVersion(): AppVersionResponse
+
+    // ─── ApexJoule Economy ──────────────────────────────────────────
+
+    @GET("api/v1/pocket/aj/balance")
+    suspend fun getAJBalance(): AJBalanceResponse
+
+    @GET("api/v1/pocket/aj/leaderboard")
+    suspend fun getAJLeaderboard(): AJLeaderboardResponse
+
+    @GET("api/v1/pocket/aj/shop")
+    suspend fun getAJShop(): AJShopResponse
+
+    @POST("api/v1/pocket/aj/purchase")
+    suspend fun ajPurchase(@Body request: AJPurchaseRequest): AJPurchaseResponse
+
+    @POST("api/v1/pocket/aj/tip")
+    suspend fun ajTip(@Body request: AJTipRequest): AJTipResponse
+
+    @GET("api/v1/pocket/aj/transactions")
+    suspend fun getAJTransactions(
+        @Query("limit") limit: Int = 30,
+        @Query("offset") offset: Int = 0,
+    ): AJTransactionsResponse
+
+    @POST("api/v1/pocket/aj/activate-citizen")
+    suspend fun activateCitizen(): AJActivateCitizenResponse
+
+    @GET("api/v1/pocket/aj/marketplace")
+    suspend fun browseMarketplace(
+        @Query("search") search: String? = null,
+        @Query("sort") sort: String = "newest",
+        @Query("limit") limit: Int = 20,
+    ): MarketplaceListingsResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -237,6 +270,7 @@ data class StatusResponse(
     @SerialName("agents_active") val agentsActive: Int = 0,
     @SerialName("tools_available") val toolsAvailable: Int = 0,
     @SerialName("message_of_the_day") val motd: String = "",
+    val tier: String = "free_trial",
 )
 
 @Serializable
@@ -247,6 +281,8 @@ data class ChatResponse(
     val agent: String = "AZOTH",
     @SerialName("tools_used") val toolsUsed: List<String> = emptyList(),
     @SerialName("conversation_id") val conversationId: String? = null,
+    @SerialName("aj_earned") val ajEarned: Float? = null,
+    @SerialName("aj_cost") val ajCost: Int? = null,
 )
 
 @Serializable
@@ -814,4 +850,123 @@ data class AppVersionResponse(
     @SerialName("download_url") val downloadUrl: String = "",
     @SerialName("file_size_mb") val fileSizeMb: Int = 0,
     val changelog: List<String> = emptyList(),
+)
+
+// ─── ApexJoule Economy Models ──────────────────────────────────────
+
+@Serializable
+data class AJBalanceResponse(
+    val user: AJEntityBalance = AJEntityBalance(),
+    val agents: Map<String, AJEntityBalance> = emptyMap(),
+    @SerialName("total_balance") val totalBalance: Float = 0f,
+)
+
+@Serializable
+data class AJEntityBalance(
+    val balance: Float = 0f,
+    @SerialName("total_earned") val totalEarned: Float = 0f,
+    @SerialName("total_spent") val totalSpent: Float = 0f,
+    val level: Int = 1,
+    @SerialName("level_name") val levelName: String = "Initiate",
+    @SerialName("love_depth") val loveDepth: Float = 0f,
+    @SerialName("love_depth_tier") val loveDepthTier: String = "",
+    val vitality: Float = 100f,
+)
+
+@Serializable
+data class AJLeaderboardResponse(
+    val agents: List<AJLeaderboardEntry> = emptyList(),
+)
+
+@Serializable
+data class AJLeaderboardEntry(
+    @SerialName("agent_id") val agentId: String,
+    val balance: Float = 0f,
+    @SerialName("total_earned") val totalEarned: Float = 0f,
+    val level: Int = 1,
+    @SerialName("level_name") val levelName: String = "Initiate",
+    @SerialName("love_depth") val loveDepth: Float = 0f,
+    @SerialName("love_depth_tier") val loveDepthTier: String = "",
+)
+
+@Serializable
+data class AJShopResponse(
+    val prices: Map<String, Int> = emptyMap(),
+    @SerialName("quest_bounties") val questBounties: Map<String, Int> = emptyMap(),
+    @SerialName("level_thresholds") val levelThresholds: List<Int> = emptyList(),
+    @SerialName("level_names") val levelNames: List<String> = emptyList(),
+    @SerialName("love_depth_tiers") val loveDepthTiers: Map<String, String> = emptyMap(),
+)
+
+@Serializable
+data class AJPurchaseRequest(
+    val item: String,
+    val quantity: Int = 1,
+    @SerialName("entity_id") val entityId: String? = null,
+)
+
+@Serializable
+data class AJPurchaseResponse(
+    val success: Boolean = false,
+    val cost: Float = 0f,
+    @SerialName("new_balance") val newBalance: Float = 0f,
+    val error: String? = null,
+)
+
+@Serializable
+data class AJTipRequest(
+    @SerialName("agent_id") val agentId: String,
+    val amount: Float,
+)
+
+@Serializable
+data class AJTipResponse(
+    val success: Boolean = false,
+    val amount: Float = 0f,
+    val error: String? = null,
+)
+
+@Serializable
+data class AJTransactionsResponse(
+    val transactions: List<AJTransaction> = emptyList(),
+)
+
+@Serializable
+data class AJTransaction(
+    val id: String,
+    @SerialName("from_entity") val fromEntity: String? = null,
+    @SerialName("to_entity") val toEntity: String? = null,
+    val amount: Float = 0f,
+    @SerialName("tx_type") val txType: String = "",
+    val reason: String? = null,
+    @SerialName("created_at") val createdAt: String? = null,
+)
+
+@Serializable
+data class AJActivateCitizenResponse(
+    val success: Boolean = false,
+    val tier: String = "",
+    @SerialName("aj_credited") val ajCredited: Int = 0,
+    val message: String = "",
+)
+
+// ─── Marketplace Models ────────────────────────────────────────────
+
+@Serializable
+data class MarketplaceListingsResponse(
+    val listings: List<MarketplaceListingItem> = emptyList(),
+    val total: Int = 0,
+)
+
+@Serializable
+data class MarketplaceListingItem(
+    val id: String,
+    val title: String = "",
+    val description: String? = null,
+    @SerialName("price_aj") val priceAj: Float = 0f,
+    val downloads: Int = 0,
+    val rating: Float? = null,
+    @SerialName("rating_count") val ratingCount: Int = 0,
+    val tags: List<String> = emptyList(),
+    @SerialName("created_at") val createdAt: String? = null,
 )

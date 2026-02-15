@@ -26,6 +26,7 @@ fun PulseScreen(
     isConnected: Boolean,
     onCouncilsClick: () -> Unit = {},
     onMusicClick: () -> Unit = {},
+    onEconomyClick: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val listState = rememberLazyListState()
@@ -68,6 +69,20 @@ fun PulseScreen(
                 fontFamily = FontFamily.Monospace,
             )
             Spacer(Modifier.weight(1f))
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = Gold.copy(alpha = 0.15f),
+                modifier = Modifier.clickable(onClick = onEconomyClick),
+            ) {
+                Text(
+                    "Economy",
+                    color = Gold,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                )
+            }
+            Spacer(Modifier.width(8.dp))
             Surface(
                 shape = RoundedCornerShape(16.dp),
                 color = Gold.copy(alpha = 0.15f),

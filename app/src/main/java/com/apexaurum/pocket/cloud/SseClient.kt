@@ -10,6 +10,7 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.floatOrNull
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -26,6 +27,8 @@ sealed class SseEvent {
         val expression: String,
         val careValue: Float,
         val agent: String,
+        val ajCost: Int? = null,
+        val ajEarned: Float? = null,
     ) : SseEvent()
     data class Error(val message: String) : SseEvent()
 }
@@ -105,6 +108,8 @@ fun streamPocketChat(
                         expression = obj["expression"]?.jsonPrimitive?.contentOrNull ?: "NEUTRAL",
                         careValue = obj["care_value"]?.jsonPrimitive?.floatOrNull ?: 0f,
                         agent = obj["agent"]?.jsonPrimitive?.contentOrNull ?: "AZOTH",
+                        ajCost = obj["aj_cost"]?.jsonPrimitive?.intOrNull,
+                        ajEarned = obj["aj_earned"]?.jsonPrimitive?.floatOrNull,
                     )
                 )
                 "error" -> emit(

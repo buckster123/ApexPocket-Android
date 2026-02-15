@@ -132,6 +132,17 @@ class MainActivity : ComponentActivity() {
                 val pocketEventCount by vm.pocketSentinelEventCount.collectAsStateWithLifecycle()
                 val pocketLastEvent by vm.pocketSentinelLastEvent.collectAsStateWithLifecycle()
                 val pocketConfig by vm.pocketSentinelConfig.collectAsStateWithLifecycle()
+                val ajBalance by vm.ajBalance.collectAsStateWithLifecycle()
+                val ajLeaderboard by vm.ajLeaderboard.collectAsStateWithLifecycle()
+                val ajShop by vm.ajShop.collectAsStateWithLifecycle()
+                val ajTransactions by vm.ajTransactions.collectAsStateWithLifecycle()
+                val ajLoading by vm.ajLoading.collectAsStateWithLifecycle()
+                val ajFeedback by vm.ajFeedback.collectAsStateWithLifecycle()
+                val marketplaceListings by vm.marketplaceListings.collectAsStateWithLifecycle()
+                val marketplaceLoading by vm.marketplaceLoading.collectAsStateWithLifecycle()
+                val lastAjEarned by vm.lastAjEarned.collectAsStateWithLifecycle()
+                val lastAjCost by vm.lastAjCost.collectAsStateWithLifecycle()
+                val userTier by vm.userTier.collectAsStateWithLifecycle()
 
                 // Load pocket sentinel config from DataStore
                 LaunchedEffect(Unit) { vm.loadPocketSentinelConfig() }
@@ -236,6 +247,17 @@ class MainActivity : ComponentActivity() {
                         pocketEventCount = pocketEventCount,
                         pocketLastEvent = pocketLastEvent,
                         pocketConfig = pocketConfig,
+                        ajBalance = ajBalance,
+                        ajLeaderboard = ajLeaderboard,
+                        ajShop = ajShop,
+                        ajTransactions = ajTransactions,
+                        ajLoading = ajLoading,
+                        ajFeedback = ajFeedback,
+                        marketplaceListings = marketplaceListings,
+                        marketplaceLoading = marketplaceLoading,
+                        lastAjEarned = lastAjEarned,
+                        lastAjCost = lastAjCost,
+                        userTier = userTier,
                         onVibrate = { pattern -> if (hapticEnabled) vibrate(pattern) },
                     )
                 }
@@ -335,6 +357,17 @@ private fun MainScreen(
     pocketEventCount: Int = 0,
     pocketLastEvent: com.apexaurum.pocket.sentinel.PocketSentinelEvent? = null,
     pocketConfig: com.apexaurum.pocket.sentinel.PocketSentinelConfig = com.apexaurum.pocket.sentinel.PocketSentinelConfig(),
+    ajBalance: AJBalanceResponse? = null,
+    ajLeaderboard: AJLeaderboardResponse? = null,
+    ajShop: AJShopResponse? = null,
+    ajTransactions: AJTransactionsResponse? = null,
+    ajLoading: Boolean = false,
+    ajFeedback: String? = null,
+    marketplaceListings: MarketplaceListingsResponse? = null,
+    marketplaceLoading: Boolean = false,
+    lastAjEarned: Float? = null,
+    lastAjCost: Int? = null,
+    userTier: String = "free_trial",
     onVibrate: (VibratePattern) -> Unit,
 ) {
     var selectedTab by remember {
@@ -380,6 +413,7 @@ private fun MainScreen(
                 pulseNav = "council_list"
             }
             "music" -> pulseNav = "events"
+            "economy" -> pulseNav = "events"
             else -> pulseNav = "events"
         }
     }
@@ -486,6 +520,7 @@ private fun MainScreen(
                     },
                     latestVillageEvent = latestTickerEvent,
                     expressionOverride = expressionOverride,
+                    ajBalance = ajBalance?.user?.balance,
                 )
                 1 -> ChatScreen(
                     soul = soul,
@@ -514,6 +549,8 @@ private fun MainScreen(
                     onSendWithImage = { text, img -> vm.sendMessageWithImage(text, img) },
                     onPlayAudio = { title, url, dur, taskId -> vm.playAudioFromChat(title, url, dur, taskId) },
                     isOnline = isOnline,
+                    lastAjCost = lastAjCost,
+                    lastAjEarned = lastAjEarned,
                 )
                 2 -> AgoraScreen(
                     posts = agoraPosts,
@@ -582,6 +619,27 @@ private fun MainScreen(
                         downloads = musicDownloads,
                         onBack = { pulseNav = "events" },
                     )
+                    "economy" -> EconomyScreen(
+                        balance = ajBalance,
+                        leaderboard = ajLeaderboard,
+                        shop = ajShop,
+                        transactions = ajTransactions,
+                        marketplaceListings = marketplaceListings,
+                        marketplaceLoading = marketplaceLoading,
+                        ajLoading = ajLoading,
+                        ajFeedback = ajFeedback,
+                        userTier = userTier,
+                        onRefreshBalance = { vm.fetchAJBalance() },
+                        onRefreshLeaderboard = { vm.fetchAJLeaderboard() },
+                        onRefreshShop = { vm.fetchAJShop() },
+                        onRefreshTransactions = { vm.fetchAJTransactions() },
+                        onPurchase = { item, qty, eid -> vm.ajPurchase(item, qty, eid) },
+                        onTip = { agentId, amount -> vm.ajTipAgent(agentId, amount) },
+                        onActivateCitizen = { vm.activateCitizen() },
+                        onFetchMarketplace = { vm.fetchMarketplace(it) },
+                        onClearFeedback = { vm.clearAjFeedback() },
+                        onBack = { pulseNav = "events" },
+                    )
                     else -> PulseScreen(
                         events = villageEvents,
                         isConnected = villagePulseConnected,
@@ -592,6 +650,12 @@ private fun MainScreen(
                         onMusicClick = {
                             vm.loadMusicLibrary()
                             pulseNav = "music"
+                        },
+                        onEconomyClick = {
+                            vm.fetchAJBalance()
+                            vm.fetchAJLeaderboard()
+                            vm.fetchAJShop()
+                            pulseNav = "economy"
                         },
                     )
                 }

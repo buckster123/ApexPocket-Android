@@ -91,6 +91,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     // Cloud connection
     private val _cloudState = MutableStateFlow(CloudState.DISCONNECTED)
     val cloudState: StateFlow<CloudState> = _cloudState.asStateFlow()
+    private val _userTier = MutableStateFlow("free_trial")
+    val userTier: StateFlow<String> = _userTier.asStateFlow()
 
     // Chat messages
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
@@ -201,6 +203,28 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val musicSearchQuery: StateFlow<String> = _musicSearchQuery.asStateFlow()
     private val _musicFavoritesOnly = MutableStateFlow(false)
     val musicFavoritesOnly: StateFlow<Boolean> = _musicFavoritesOnly.asStateFlow()
+
+    // ApexJoule Economy
+    private val _ajBalance = MutableStateFlow<AJBalanceResponse?>(null)
+    val ajBalance: StateFlow<AJBalanceResponse?> = _ajBalance.asStateFlow()
+    private val _ajLeaderboard = MutableStateFlow<AJLeaderboardResponse?>(null)
+    val ajLeaderboard: StateFlow<AJLeaderboardResponse?> = _ajLeaderboard.asStateFlow()
+    private val _ajShop = MutableStateFlow<AJShopResponse?>(null)
+    val ajShop: StateFlow<AJShopResponse?> = _ajShop.asStateFlow()
+    private val _ajTransactions = MutableStateFlow<AJTransactionsResponse?>(null)
+    val ajTransactions: StateFlow<AJTransactionsResponse?> = _ajTransactions.asStateFlow()
+    private val _ajLoading = MutableStateFlow(false)
+    val ajLoading: StateFlow<Boolean> = _ajLoading.asStateFlow()
+    private val _ajFeedback = MutableStateFlow<String?>(null)
+    val ajFeedback: StateFlow<String?> = _ajFeedback.asStateFlow()
+    private val _marketplaceListings = MutableStateFlow<MarketplaceListingsResponse?>(null)
+    val marketplaceListings: StateFlow<MarketplaceListingsResponse?> = _marketplaceListings.asStateFlow()
+    private val _marketplaceLoading = MutableStateFlow(false)
+    val marketplaceLoading: StateFlow<Boolean> = _marketplaceLoading.asStateFlow()
+    private val _lastAjEarned = MutableStateFlow<Float?>(null)
+    val lastAjEarned: StateFlow<Float?> = _lastAjEarned.asStateFlow()
+    private val _lastAjCost = MutableStateFlow<Int?>(null)
+    val lastAjCost: StateFlow<Int?> = _lastAjCost.asStateFlow()
 
     // SensorHead Dashboard
     private val _sensorStatus = MutableStateFlow<SensorStatusResponse?>(null)
@@ -406,6 +430,7 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 val status = api?.getStatus()
                 if (status != null) {
                     _motd.value = status.motd
+                    _userTier.value = status.tier
                     _cloudState.value = CloudState.CONNECTED
                 }
                 // Fetch agents + cache
@@ -416,6 +441,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                         _agents.value = fresh
                     } catch (_: Exception) {}
                 }
+                // Fetch AJ balance
+                try { _ajBalance.value = currentApi?.getAJBalance() } catch (_: Exception) {}
                 // Fetch memories
                 fetchMemories()
                 // Load chat history for current agent
@@ -1285,6 +1312,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                     response.conversationId?.let { id ->
                         repo.saveConversationId(currentSoul.selectedAgentId, id)
                     }
+                    _lastAjEarned.value = response.ajEarned
+                    _lastAjCost.value = response.ajCost
                     if (response.careValue > 0) {
                         val updated = LoveEquation.applyCare(currentSoul, response.careValue)
                         saveSoul(updated)
@@ -1386,6 +1415,8 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 is SseEvent.End -> {
                     expression = event.expression
                     careValue = event.careValue
+                    _lastAjEarned.value = event.ajEarned
+                    _lastAjCost.value = event.ajCost
                     val msgs = _messages.value
                     if (msgs.isNotEmpty() && !msgs.last().isUser) {
                         _messages.value = msgs.dropLast(1) + msgs.last().copy(
@@ -1618,6 +1649,113 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    // ── ApexJoule Economy ──
+
+    /** Fetch user + all agent AJ balances. */
+    fun fetchAJBalance() {
+        viewModelScope.launch {
+            try {
+                _ajBalance.value = api?.getAJBalance()
+            } catch (_: Exception) {}
+        }
+    }
+
+    /** Fetch agent leaderboard by total earned. */
+    fun fetchAJLeaderboard() {
+        viewModelScope.launch {
+            _ajLoading.value = true
+            try {
+                _ajLeaderboard.value = api?.getAJLeaderboard()
+            } catch (_: Exception) {}
+            finally { _ajLoading.value = false }
+        }
+    }
+
+    /** Fetch shop prices and level info. */
+    fun fetchAJShop() {
+        viewModelScope.launch {
+            try {
+                _ajShop.value = api?.getAJShop()
+            } catch (_: Exception) {}
+        }
+    }
+
+    /** Fetch recent AJ transactions. */
+    fun fetchAJTransactions() {
+        viewModelScope.launch {
+            try {
+                _ajTransactions.value = api?.getAJTransactions()
+            } catch (_: Exception) {}
+        }
+    }
+
+    /** Purchase a shop item with AJ. */
+    fun ajPurchase(item: String, quantity: Int = 1, entityId: String? = null) {
+        viewModelScope.launch {
+            try {
+                val resp = api?.ajPurchase(AJPurchaseRequest(item, quantity, entityId))
+                if (resp?.success == true) {
+                    _ajFeedback.value = "Purchased! -${resp.cost.toInt()} AJ"
+                    fetchAJBalance()
+                } else {
+                    _ajFeedback.value = resp?.error ?: "Purchase failed"
+                }
+            } catch (e: Exception) {
+                _ajFeedback.value = "Purchase failed: ${e.message}"
+            }
+        }
+    }
+
+    /** Tip an agent with AJ. */
+    fun ajTipAgent(agentId: String, amount: Float) {
+        viewModelScope.launch {
+            try {
+                val resp = api?.ajTip(AJTipRequest(agentId, amount))
+                if (resp?.success == true) {
+                    _ajFeedback.value = "Tipped $agentId ${amount.toInt()} AJ!"
+                    fetchAJBalance()
+                    fetchAJLeaderboard()
+                } else {
+                    _ajFeedback.value = resp?.error ?: "Tip failed"
+                }
+            } catch (e: Exception) {
+                _ajFeedback.value = "Tip failed: ${e.message}"
+            }
+        }
+    }
+
+    /** Activate AJ Citizen tier from mobile. */
+    fun activateCitizen() {
+        viewModelScope.launch {
+            _ajLoading.value = true
+            try {
+                val resp = api?.activateCitizen()
+                if (resp?.success == true) {
+                    _ajFeedback.value = resp.message
+                    fetchAJBalance()
+                } else {
+                    _ajFeedback.value = "Activation failed"
+                }
+            } catch (e: Exception) {
+                _ajFeedback.value = "Activation failed: ${e.message}"
+            } finally { _ajLoading.value = false }
+        }
+    }
+
+    /** Browse marketplace listings. */
+    fun fetchMarketplace(search: String? = null) {
+        viewModelScope.launch {
+            _marketplaceLoading.value = true
+            try {
+                _marketplaceListings.value = api?.browseMarketplace(search)
+            } catch (_: Exception) {}
+            finally { _marketplaceLoading.value = false }
+        }
+    }
+
+    /** Clear AJ feedback message after snackbar display. */
+    fun clearAjFeedback() { _ajFeedback.value = null }
 
     // ── SensorHead Dashboard ──
 

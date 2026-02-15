@@ -29,6 +29,7 @@ import com.apexaurum.pocket.soul.AffectiveState
 import com.apexaurum.pocket.soul.Expression
 import com.apexaurum.pocket.soul.SoulData
 import com.apexaurum.pocket.ui.theme.*
+import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlinx.coroutines.delay
 
@@ -45,6 +46,7 @@ fun FaceScreen(
     onPoke: () -> Unit,
     latestVillageEvent: VillageEvent? = null,
     expressionOverride: Expression? = null,
+    ajBalance: Float? = null,
     modifier: Modifier = Modifier,
 ) {
     val stateColor = soul.state.color()
@@ -131,6 +133,23 @@ fun FaceScreen(
             fontFamily = FontFamily.Monospace,
             modifier = Modifier.padding(top = 4.dp),
         )
+
+        // AJ balance badge
+        if (ajBalance != null && ajBalance > 0f) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = Gold.copy(alpha = 0.12f),
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
+                Text(
+                    text = "${ajBalance.roundToInt()} AJ",
+                    color = Gold,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                )
+            }
+        }
 
         Spacer(Modifier.weight(1f))
 

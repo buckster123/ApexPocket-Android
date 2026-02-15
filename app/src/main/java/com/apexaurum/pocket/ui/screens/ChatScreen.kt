@@ -76,6 +76,8 @@ fun ChatScreen(
     onSendWithImage: (text: String, imageBase64: String?) -> Unit = { t, _ -> onSend(t) },
     onPlayAudio: (title: String, audioUrl: String, duration: Float, taskId: String) -> Unit = { _, _, _, _ -> },
     isOnline: Boolean = true,
+    lastAjCost: Int? = null,
+    lastAjEarned: Float? = null,
     modifier: Modifier = Modifier,
 ) {
     var inputText by remember { mutableStateOf("") }
@@ -279,6 +281,33 @@ fun ChatScreen(
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.padding(start = 8.dp, top = 4.dp),
                     )
+                }
+            }
+
+            // AJ cost / earned indicator (most recent message)
+            if (!isChatting && (lastAjCost != null || lastAjEarned != null)) {
+                item {
+                    Row(
+                        modifier = Modifier.padding(start = 8.dp, top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        if (lastAjCost != null && lastAjCost > 0) {
+                            Text(
+                                text = "-$lastAjCost AJ",
+                                color = TextMuted,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                        if (lastAjEarned != null && lastAjEarned > 0f) {
+                            Text(
+                                text = "+%.1f AJ".format(lastAjEarned),
+                                color = Gold,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                            )
+                        }
+                    }
                 }
             }
         }
