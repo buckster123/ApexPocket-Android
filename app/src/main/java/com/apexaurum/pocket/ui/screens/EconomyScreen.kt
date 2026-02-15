@@ -432,7 +432,7 @@ private fun ShopView(
                     )
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "%.0f AJ".format(price),
+                        "$price AJ",
                         color = Gold,
                         fontSize = 16.sp,
                         fontFamily = FontFamily.Monospace,

@@ -15,6 +15,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import okhttp3.OkHttpClient
 
 /** Chat message for display. */
@@ -1733,10 +1736,18 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 val resp = api?.activateCitizen()
                 if (resp?.success == true) {
                     _ajFeedback.value = resp.message
+                    _userTier.value = resp.tier.ifBlank { "aj_citizen" }
                     fetchAJBalance()
                 } else {
                     _ajFeedback.value = "Activation failed"
                 }
+            } catch (e: retrofit2.HttpException) {
+                val body = e.response()?.errorBody()?.string() ?: ""
+                val detail = try {
+                    kotlinx.serialization.json.Json.parseToJsonElement(body)
+                        .jsonObject["detail"]?.jsonPrimitive?.contentOrNull
+                } catch (_: Exception) { null }
+                _ajFeedback.value = detail ?: "Activation failed (${e.code()})"
             } catch (e: Exception) {
                 _ajFeedback.value = "Activation failed: ${e.message}"
             } finally { _ajLoading.value = false }
