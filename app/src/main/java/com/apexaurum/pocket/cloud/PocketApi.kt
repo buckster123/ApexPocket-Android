@@ -187,6 +187,11 @@ interface PocketApi {
 
     @POST("api/v1/pocket/settings")
     suspend fun updateSettings(@Body request: PocketSettingsRequest): PocketSettingsResponse
+
+    // ─── App Updates ────────────────────────────────────────────────
+
+    @GET("api/v1/app/latest")
+    suspend fun getLatestVersion(): AppVersionResponse
 }
 
 // ─── Request Models (match backend Pydantic schemas exactly) ─────
@@ -795,4 +800,18 @@ data class PocketSettingsRequest(
 data class PocketSettingsResponse(
     val success: Boolean = false,
     val updated: Map<String, String> = emptyMap(),
+)
+
+// ─── App Version Models ────────────────────────────────────────────
+
+@Serializable
+data class AppVersionResponse(
+    @SerialName("version_name") val versionName: String = "1.0.0",
+    @SerialName("version_code") val versionCode: Int = 1,
+    @SerialName("min_sdk") val minSdk: Int = 26,
+    @SerialName("min_android") val minAndroid: String = "8.0",
+    @SerialName("release_date") val releaseDate: String = "",
+    @SerialName("download_url") val downloadUrl: String = "",
+    @SerialName("file_size_mb") val fileSizeMb: Int = 0,
+    val changelog: List<String> = emptyList(),
 )

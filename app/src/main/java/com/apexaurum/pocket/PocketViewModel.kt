@@ -272,6 +272,10 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
     val promptMode: StateFlow<String> = repo.promptModeFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, "lite")
 
+    // App Update
+    private val _updateAvailable = MutableStateFlow<AppVersionResponse?>(null)
+    val updateAvailable: StateFlow<AppVersionResponse?> = _updateAvailable.asStateFlow()
+
     // API client (created when token is set)
     private var api: PocketApi? = null
     private var streamingClient: OkHttpClient? = null
@@ -422,10 +426,34 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
                 checkDailyBriefing()
                 // Load Agora feed
                 loadAgoraFeed()
+                // Check for app updates
+                checkForUpdate()
             } catch (e: Exception) {
                 _cloudState.value = CloudState.ERROR
             }
         }
+    }
+
+    /** Check backend for a newer APK version. */
+    private fun checkForUpdate() {
+        viewModelScope.launch {
+            try {
+                val latest = api?.getLatestVersion() ?: return@launch
+                val currentCode = BuildConfig.VERSION_CODE
+                if (latest.versionCode > currentCode) {
+                    _updateAvailable.value = latest
+                    Log.i("PocketVM", "Update available: ${latest.versionName} (code ${latest.versionCode})")
+                }
+            } catch (e: Exception) {
+                // Update check is non-critical — silently ignore
+                Log.d("PocketVM", "Update check failed: ${e.message}")
+            }
+        }
+    }
+
+    /** Dismiss the update banner. */
+    fun dismissUpdate() {
+        _updateAvailable.value = null
     }
 
     /** Fetch memories from cloud (filtered by current agent). Cache to Room. */
