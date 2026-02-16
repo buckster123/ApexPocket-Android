@@ -219,6 +219,9 @@ interface PocketApi {
     @POST("api/v1/pocket/aj/activate-citizen")
     suspend fun activateCitizen(): AJActivateCitizenResponse
 
+    @POST("api/v1/pocket/aj/subscribe")
+    suspend fun ajSubscribe(@Body request: AJSubscribeRequest): AJSubscribeResponse
+
     @GET("api/v1/pocket/aj/marketplace")
     suspend fun browseMarketplace(
         @Query("search") search: String? = null,
@@ -947,6 +950,21 @@ data class AJActivateCitizenResponse(
     val success: Boolean = false,
     val tier: String = "",
     @SerialName("aj_credited") val ajCredited: Int = 0,
+    val message: String = "",
+)
+
+@Serializable
+data class AJSubscribeRequest(
+    val tier: String,
+)
+
+@Serializable
+data class AJSubscribeResponse(
+    val success: Boolean = false,
+    val tier: String = "",
+    @SerialName("aj_spent") val ajSpent: Int = 0,
+    @SerialName("messages_limit") val messagesLimit: Int = 0,
+    @SerialName("period_end") val periodEnd: String? = null,
     val message: String = "",
 )
 

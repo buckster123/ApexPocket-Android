@@ -41,6 +41,7 @@ fun EconomyScreen(
     onPurchase: (item: String, quantity: Int, entityId: String?) -> Unit,
     onTip: (agentId: String, amount: Float) -> Unit,
     onActivateCitizen: () -> Unit,
+    onSubscribe: (tier: String) -> Unit,
     onFetchMarketplace: (search: String?) -> Unit,
     onClearFeedback: () -> Unit,
     onBack: () -> Unit,
@@ -137,7 +138,7 @@ fun EconomyScreen(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                listOf("leaderboard" to "Leaderboard", "shop" to "Shop", "marketplace" to "Marketplace").forEach { (key, label) ->
+                listOf("leaderboard" to "Leaderboard", "shop" to "Shop", "subscribe" to "Subscribe", "marketplace" to "Marketplace").forEach { (key, label) ->
                     val selected = view == key
                     Surface(
                         shape = RoundedCornerShape(16.dp),
@@ -176,6 +177,12 @@ fun EconomyScreen(
                     userBalance = balance?.user?.balance ?: 0f,
                     isLoading = ajLoading,
                     onPurchase = onPurchase,
+                )
+                "subscribe" -> SubscribeView(
+                    userBalance = balance?.user?.balance ?: 0f,
+                    currentTier = userTier,
+                    isLoading = ajLoading,
+                    onSubscribe = onSubscribe,
                 )
                 "marketplace" -> MarketplaceView(
                     listings = marketplaceListings,
@@ -656,6 +663,140 @@ private fun TipDialog(
             }
         },
     )
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUBSCRIBE VIEW — Pay for tiers with AJ
+// ═══════════════════════════════════════════════════════════════════════════════
+
+private val AJ_TIERS = listOf(
+    Triple("seeker", "Seeker", 8_000),
+    Triple("adept", "Adept", 24_000),
+    Triple("opus", "Opus", 80_000),
+    Triple("azothic", "Azothic", 240_000),
+)
+
+@Composable
+private fun SubscribeView(
+    userBalance: Float,
+    currentTier: String,
+    isLoading: Boolean,
+    onSubscribe: (String) -> Unit,
+) {
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        contentPadding = PaddingValues(bottom = 16.dp),
+    ) {
+        item {
+            Text(
+                "Subscribe with AJ",
+                color = Gold,
+                fontSize = 16.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 4.dp),
+            )
+            Text(
+                "Pay for your tier with ApexJoule credits. 30-day period.",
+                color = TextMuted,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(bottom = 8.dp),
+            )
+        }
+
+        items(AJ_TIERS.size) { index ->
+            val (tierId, tierName, price) = AJ_TIERS[index]
+            val isCurrent = currentTier == tierId
+            val canAfford = userBalance >= price
+            val tierColor = when (tierId) {
+                "seeker" -> TextPrimary
+                "adept" -> VajraBlue
+                "opus" -> ElysianViolet
+                "azothic" -> Gold
+                else -> TextPrimary
+            }
+
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (isCurrent) tierColor.copy(alpha = 0.08f) else ApexSurface,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                tierName,
+                                color = tierColor,
+                                fontSize = 16.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                            )
+                            if (isCurrent) {
+                                Spacer(Modifier.width(8.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = tierColor.copy(alpha = 0.2f),
+                                ) {
+                                    Text(
+                                        "Current",
+                                        color = tierColor,
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            "%,d AJ / 30 days".format(price),
+                            color = TextMuted,
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
+                    if (!isCurrent) {
+                        Button(
+                            onClick = { onSubscribe(tierId) },
+                            enabled = canAfford && !isLoading,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Gold,
+                                contentColor = ApexBlack,
+                                disabledContainerColor = ApexBorder,
+                            ),
+                        ) {
+                            Text(
+                                if (canAfford) "Subscribe" else "Need AJ",
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 12.sp,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Balance reminder
+        item {
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = Gold.copy(alpha = 0.05f),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text(
+                    "Your balance: %.0f AJ".format(userBalance),
+                    color = Gold,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.padding(12.dp),
+                )
+            }
+        }
+    }
 }
 
 

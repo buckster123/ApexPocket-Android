@@ -636,6 +636,7 @@ private fun MainScreen(
                         onPurchase = { item, qty, eid -> vm.ajPurchase(item, qty, eid) },
                         onTip = { agentId, amount -> vm.ajTipAgent(agentId, amount) },
                         onActivateCitizen = { vm.activateCitizen() },
+                        onSubscribe = { tier -> vm.ajSubscribe(tier) },
                         onFetchMarketplace = { vm.fetchMarketplace(it) },
                         onClearFeedback = { vm.clearAjFeedback() },
                         onBack = { pulseNav = "events" },

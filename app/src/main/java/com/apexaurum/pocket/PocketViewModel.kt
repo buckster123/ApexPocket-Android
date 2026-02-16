@@ -1754,6 +1754,32 @@ class PocketViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    /** Subscribe to a tier with AJ credits. */
+    fun ajSubscribe(tier: String) {
+        viewModelScope.launch {
+            _ajLoading.value = true
+            try {
+                val resp = api?.ajSubscribe(AJSubscribeRequest(tier))
+                if (resp?.success == true) {
+                    _ajFeedback.value = resp.message
+                    _userTier.value = resp.tier
+                    fetchAJBalance()
+                } else {
+                    _ajFeedback.value = "Subscription failed"
+                }
+            } catch (e: retrofit2.HttpException) {
+                val body = e.response()?.errorBody()?.string() ?: ""
+                val detail = try {
+                    kotlinx.serialization.json.Json.parseToJsonElement(body)
+                        .jsonObject["detail"]?.jsonPrimitive?.contentOrNull
+                } catch (_: Exception) { null }
+                _ajFeedback.value = detail ?: "Subscription failed (${e.code()})"
+            } catch (e: Exception) {
+                _ajFeedback.value = "Subscription failed: ${e.message}"
+            } finally { _ajLoading.value = false }
+        }
+    }
+
     /** Browse marketplace listings. */
     fun fetchMarketplace(search: String? = null) {
         viewModelScope.launch {
